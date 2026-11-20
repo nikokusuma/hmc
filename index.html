@@ -66,8 +66,8 @@ function pay(i){if(lock(today()))return;const x=by(db.inv,i);x.paid=1;x.pd=today
 function unpay(i){const x=by(db.inv,i);if(prompt('Masukkan password khusus')!=PASS_UNLOCK)return alert('Password salah');if(lock(x.pd))return;x.paid=0;x.pd='';save();go()}
 function cp(i){const x=by(db.inv,i),s=by(db.students,x.sid),t=`Halo, mengingatkan tagihan les Mandarin ${s.name} periode ${x.m} sebesar ${rp(x.amt)}. Mohon pembayaran paling lambat tanggal 10 ${x.bm}. Terima kasih.`;
  navigator.clipboard.writeText(t).then(()=>alert('Teks tersalin, tinggal tempel di WhatsApp'),()=>prompt('Salin teks ini',t))}
-function gaji(t,m){let j=0,b=0;db.ses.forEach(e=>{if(e.done&&ym(e.date)==m){const c=by(db.classes,e.cid);if(c.teacherId==t.id){j+=c.hours;if(e.att.length>=BONUS_MIN)b+=c.hours*c.bonus}}});
- const p=j*t.rate,n=j?+t.ins||0:0;return{j,p,b,n,tot:p+b+n}}
+function gaji(t,m){let j=0,b=0,p=0;db.ses.forEach(e=>{if(e.done&&ym(e.date)==m){const c=by(db.classes,e.cid);if(c.teacherId==t.id){j+=c.hours;p+=c.hours*(c.tpay||0);if(e.att.length>=BONUS_MIN)b+=c.hours*c.bonus}}});
+ const n=j?+t.ins||0:0;return{j,p,b,n,tot:p+b+n}}
 function paySal(t){if(lock(today())||!confirm('Gaji yang sudah lunas tidak bisa dibatalkan. Lanjutkan?'))return;db.sal.push({id:id(),tid:t,m:M,amt:gaji(by(db.teachers,t),M).tot,pd:today()});save();go()}
 
 // ---- umum ----
@@ -76,8 +76,8 @@ function table(n,h,rows,acts){TB[n]={h,rows};
 function xl(n){const t=TB[n],h='<meta charset=utf-8><table border=1><tr>'+t.h.map(x=>'<th>'+x+'</th>').join('')+'</tr>'+t.rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join('')+'</table>',a=document.createElement('a');
  a.href=URL.createObjectURL(new Blob([h],{type:'application/vnd.ms-excel'}));a.download=n+'.xls';a.click()}
 const FORMS={
- teachers:[['name','Nama','text'],['rate','Gaji per jam (Rp)','number'],['ins','Insentif per bulan (Rp)','number']],
- classes:[['name','Nama kelas','text'],['type','Jenis','sel',()=>[['private','Private'],['grup','Grup']]],['teacherId','Guru','sel',()=>db.teachers.map(t=>[t.id,t.name])],['days','Hari (berulang)','days'],['once','Atau sekali datang (tanggal)','date'],['start','Mulai berulang','date'],['time','Jam mulai','time'],['hours','Durasi (jam)','number'],['room','Ruangan','text'],['fee','Tarif (bayar di awal: per bulan, di akhir: per jam)','number'],['bonus','Bonus guru per jam','number'],['pay','Tempo pembayaran','sel',()=>[['awal','Di awal'],['akhir','Di akhir']]]],
+ teachers:[['name','Nama','text'],['ins','Insentif per bulan (Rp)','number']],
+ classes:[['name','Nama kelas','text'],['type','Jenis','sel',()=>[['private','Private'],['grup','Grup']]],['teacherId','Guru','sel',()=>db.teachers.map(t=>[t.id,t.name])],['days','Hari (berulang)','days'],['once','Atau sekali datang (tanggal)','date'],['start','Mulai berulang','date'],['time','Jam mulai','time'],['hours','Durasi (jam)','number'],['room','Ruangan','text'],['fee','Tarif (bayar di awal: per bulan, di akhir: per jam)','number'],['tpay','Gaji guru per jam di kelas ini (Rp)','number'],['bonus','Bonus guru per jam','number'],['pay','Tempo pembayaran','sel',()=>[['awal','Di awal'],['akhir','Di akhir']]]],
  students:[['name','Nama','text'],['phone','No. WA','text'],['status','Status','sel',()=>[['active','Mendapat kelas'],['waiting','Waiting list']]],['classId','Kelas','sel',()=>db.classes.map(c=>[c.id,c.name])],['regFee','Biaya pendaftaran (waiting list)','number'],['note','Keterangan / rencana kelas','text']],
  stock:[['name','Nama barang','text'],['qty','Stok','number'],['min','Batas minimum','number'],['price','Harga jual (Rp)','number']]};
 function form(c){const o=ed&&ed.c==c?by(db[c],ed.i):{};
@@ -108,8 +108,8 @@ Kehadiran(){const L=dayS(cd);
   ${s.done?'':`<div class=f><label>Tanggal pengganti<input type=date class=mv value=${cd}></label><label>Jam<input type=time class=mv value=${s.time}></label><label>Ruangan<input class=mv value="${esc(s.room||'')}"></label><button class=g onclick="mv(this,${a})">Ganti jadwal (1 kali)</button></div>`}
   <button class="g s" onclick="cn(${a})">Batalkan kelas</button>`)+'</div></details>'}).join('')||'<div class=card>Tidak ada kelas pada tanggal ini.</div>')},
 Siswa(){return crud('students',['Nama','No. WA','Status','Kelas','Biaya daftar (Rp)','Keterangan'],s=>[s.name,s.phone,s.status=='waiting'?'Waiting list':'Aktif',by(db.classes,s.classId).name||'-',s.regFee||0,s.note])},
-Kelas(){return crud('classes',['Kelas','Jenis','Guru','Jadwal','Durasi (jam)','Tarif (Rp)','Bonus/jam (Rp)','Bayar'],c=>[c.name,c.type,by(db.teachers,c.teacherId).name,(c.once||c.days.map(d=>DAYS[d]).join(','))+' '+c.time,c.hours,c.fee,c.bonus,c.pay])},
-Guru(){return crud('teachers',['Nama','Gaji/jam (Rp)','Insentif (Rp)'],t=>[t.name,t.rate,t.ins])},
+Kelas(){return crud('classes',['Kelas','Jenis','Guru','Jadwal','Durasi (jam)','Tarif (Rp)','Gaji guru/jam (Rp)','Bonus/jam (Rp)','Bayar'],c=>[c.name,c.type,by(db.teachers,c.teacherId).name,(c.once||c.days.map(d=>DAYS[d]).join(','))+' '+c.time,c.hours,c.fee,c.tpay||0,c.bonus,c.pay])},
+Guru(){return crud('teachers',['Nama','Insentif (Rp)'],t=>[t.name,t.ins])},
 Tagihan(){const L=[...db.inv].sort((a,b)=>a.paid-b.paid||b.bm.localeCompare(a.bm));
  return table('tagihan',['Siswa','Periode','Keterangan','Jumlah (Rp)','Status'],L.map(i=>[by(db.students,i.sid).name,i.m,i.t=='awal'?by(db.classes,i.cid).name:'Pemakaian jam bulan lalu',i.amt,i.paid?'Lunas '+i.pd:od(i)?'BELUM BAYAR (lewat tanggal 10)':'Belum lunas']),
   i=>{const x=L[i];return x.paid?`<button class="s g" onclick="unpay(${x.id})">Buka kunci</button>`:`<button class=s onclick="pay(${x.id})">Lunas</button> <button class="s g" onclick="cp(${x.id})">Salin teks WA</button>`})},
