@@ -34,6 +34,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
 let db=JSON.parse(localStorage[K]||'null')||{users:[],siswa:[],guru:[],jadwal:[],bayar:{},barang:[],jual:[],keluar:[],tutup:{}};
 db.jadwal=db.jadwal.map(j=>j.peserta?j:{id:j.id,guru:j.guru,tgl:j.tgl,jam:j.jam,dur:j.dur,gaji:(db.guru.find(g=>g.id==j.guru)||{}).tarif||0,peserta:[{s:j.siswa,st:j.st}]});
+db.tagih=db.tagih||{};
 const save=()=>localStorage[K]=JSON.stringify(db);
 const sha=async t=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)))].map(b=>b.toString(16).padStart(2,'0')).join('');
 const fd=e=>{e.preventDefault();return Object.fromEntries([...new FormData(e.target)].map(([k,v])=>[k,e.target[k].type=='number'?+v:v]))};
@@ -46,15 +47,20 @@ const lk=d=>db.tutup[ym(d)]?(alert('Bulan '+ym(d)+' sudah ditutup. Buka dulu di 
 const hs=(s,m)=>db.jadwal.filter(j=>ym(j.tgl)==m&&j.peserta.some(p=>p.s==s.id&&p.st=='hadir')),hd=(s,m)=>hs(s,m).length,jam=(s,m)=>S(hs(s,m),'dur');
 const BON=5000,nh=j=>j.peserta.filter(p=>p.st=='hadir').length,bon=n=>n>1?(n-1)*BON:0,sg=j=>nh(j)?j.gaji*j.dur+bon(nh(j)):0;
 const gj=(g,m)=>{const L=db.jadwal.filter(x=>x.guru==g.id&&ym(x.tgl)==m&&nh(x));return[S(L,'dur'),S(L.map(x=>({t:sg(x)})),'t')]};
-let tab='jadwal',bln=today().slice(0,7),ed=null;
+let tab='jadwal',bln=today().slice(0,7),ed=null,pg=null;
 
-const rem=()=>{let h='';const t=today(),cm=ym(t),dd=+t.slice(8);
- db.siswa.forEach(s=>[...new Set(db.jadwal.filter(j=>j.peserta.some(p=>p.s==s.id&&p.st=='hadir')).map(j=>ym(j.tgl)))].forEach(m=>{
-  if(!db.bayar[s.id+'|'+m]&&(m<cm||dd>=(s.tempo||1))){const tot=jam(s,m)*s.tarif;
-   h+=`<div class=w>💰 ${esc(s.nama)} belum bayar les ${m}: <b>${rp(tot)}</b> ${s.hp?`<a target=_blank href="https://wa.me/${esc(s.hp)}?text=${encodeURIComponent('Halo, mengingatkan tagihan les Mandarin '+s.nama+' bulan '+m+' sebesar '+rp(tot)+'. Terima kasih.')}">Kirim WA</a>`:''}</div>`}}));
+const ld=m=>new Date(Date.UTC(+m.slice(0,4),+m.slice(5),0)).toISOString().slice(0,10);
+const due=(s,m)=>s.jenis=='akhir'?ld(m):m+'-'+String(s.tempo||1).padStart(2,'0');
+const np=(s,m)=>{const v=db.tagih[s.id+'|'+m];return v==null?db.jadwal.filter(j=>ym(j.tgl)==m&&!j.pengganti&&j.peserta.some(p=>p.s==s.id)).length:v};
+const tg=(s,m)=>np(s,m)*s.tarif;
+const pb=(x,p)=>{const s=db.siswa.find(z=>z.id==p.s)||{};let h=`<button class=s onclick="A.cy('${x.id}','${p.s}')">${IC[p.st]} ${nm('siswa',p.s)}</button>`;
+ if(p.st=='absen'&&s.kelas=='private')h+=p.gt?` <small>↻ diganti ${(db.jadwal.find(z=>z.id==p.gt)||{}).tgl||''}</small>`:` <button class=p onclick="pg={j:'${x.id}',s:'${p.s}'};ed=null;go();scrollTo(0,0)">↻ Jadwalkan pengganti</button>`;return h};
+const rem=()=>{let h='';const t=today();
+ db.siswa.forEach(s=>[...new Set([...db.jadwal.filter(j=>j.peserta.some(p=>p.s==s.id)).map(j=>ym(j.tgl)),...Object.keys(db.tagih).filter(k=>k.startsWith(s.id+'|')).map(k=>k.slice(-7))])].forEach(m=>{
+  if(!db.bayar[s.id+'|'+m]&&tg(s,m)>0&&t>=due(s,m))
+   h+=`<div class=w>💰 ${esc(s.nama)} (bayar di ${s.jenis=='akhir'?'akhir':'awal'}) belum bayar les ${m}: <b>${rp(tg(s,m))}</b>, jatuh tempo ${due(s,m)} ${s.hp?`<a target=_blank href="https://wa.me/${esc(s.hp)}?text=${encodeURIComponent('Halo, mengingatkan tagihan les Mandarin '+s.nama+' bulan '+m+' ('+np(s,m)+' pertemuan) sebesar '+rp(tg(s,m))+'. Terima kasih.')}">Kirim WA</a>`:''}</div>`}));
  db.barang.filter(b=>b.stok<=b.min).forEach(b=>h+=`<div class=w>📦 Stok ${esc(b.nama)} tinggal ${b.stok} (batas minimum ${b.min})</div>`);return h};
-
-const go=t=>{if(t){tab=t;ed=null}
+const go=t=>{if(t){tab=t;ed=pg=null}
  $('#app').innerHTML=`<nav>${[['jadwal','Jadwal'],['data','Siswa & Guru'],['tagihan','Tagihan'],['gaji','Gaji Guru'],['stok','Stok'],['lap','Laporan'],['akun','Akun']].map(([k,l])=>`<button class="${k==tab?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}</nav>
  <main>${rem()}<div class=c>Bulan: <input type=month value=${bln} onchange="bln=this.value||bln;go()"> ${db.tutup[bln]?'🔒 Sudah ditutup':''}</div>${V[tab]()}</main>`};
 
@@ -62,45 +68,49 @@ const addD=(d,n)=>{const x=new Date(d+'T00:00:00Z');x.setUTCDate(x.getUTCDate()+
 const wd=d=>new Date(d+'T00:00:00Z').getUTCDay(),HR=['Min','Sen','Sel','Rab','Kam','Jum','Sab'],IC={terjadwal:'○',hadir:'✔',absen:'✖'};
 const nms=j=>j.peserta.map(p=>IC[p.st]+' '+nm('siswa',p.s)).join(', ');
 let wk=today();
-V.jadwal=()=>{const e=db.jadwal.find(x=>x.id==ed)||{tgl:today(),jam:'16:00',dur:1,peserta:[]},
+V.jadwal=()=>{const po=pg&&db.jadwal.find(x=>x.id==pg.j),e=db.jadwal.find(x=>x.id==ed)||(po?{...po,tgl:today(),peserta:[{s:pg.s}]}:{tgl:today(),jam:'16:00',dur:1,peserta:[]}),
  L=db.jadwal.filter(x=>ym(x.tgl)==bln).sort((a,b)=>(a.tgl+a.jam).localeCompare(b.tgl+b.jam)),
  w0=addD(wk,-((wd(wk)+6)%7)),days=[0,1,2,3,4,5,6].map(i=>addD(w0,i)),
  W=db.jadwal.filter(x=>x.tgl>=w0&&x.tgl<=days[6]),jams=[...new Set(W.map(x=>x.jam))].sort();
- return `<div class=c><h3>${ed?'Ubah':'Tambah'} jadwal</h3><form class=f onsubmit="A.sj(event)">
+ return `<div class=c><h3>${ed?'Ubah jadwal':pg?'Jadwal pengganti (kelas private)':'Tambah jadwal'}</h3><form class=f onsubmit="A.sj(event)">
  ${lb('Guru',`<select name=guru>${opt(db.guru,e.guru)}</select>`)}${inp('Tanggal','tgl',e.tgl,'date','required')}${inp('Jam','jam',e.jam,'time')}${inp('Durasi (jam)','dur',e.dur,'number','step=.5 min=.5 style=width:80px')}${inp('Gaji guru/jam sesi ini','gaji',e.gaji||'','number','min=0 placeholder="default guru"')}
- <div class=chk style="width:100%"><b>Siswa:</b> ${db.siswa.map(s=>`<label><input type=checkbox name=siswa value="${s.id}" ${e.peserta.some(p=>p.s==s.id)?'checked':''}> ${esc(s.nama)}</label>`).join('')||'(tambah siswa dulu)'}</div>
- ${ed?'':`<div class=chk style="width:100%"><b>Ulangi tiap minggu:</b> ${[1,2,3,4,5,6,0].map(d=>`<label><input type=checkbox name=hari value=${d}> ${HR[d]}</label>`).join('')}</div>${inp('Sampai tanggal (kosong = sekali saja)','sampai','','date')}`}
- <button class=p>${ed?'Simpan':'Tambah'}</button>${ed?'<button type=button class=s onclick="ed=null;go()">Batal</button>':''}</form></div>
+ <div class=chk style="width:100%"><b>Siswa:</b> ${db.siswa.map(s=>`<label><input type=checkbox name=siswa value="${s.id}" ${e.peserta.some(p=>p.s==s.id)?'checked':''}> ${esc(s.nama)} <small>(${s.kelas=='private'?'private':'grup'})</small></label>`).join('')||'(tambah siswa dulu)'}</div>
+ ${ed||pg?'':`<div class=chk style="width:100%"><b>Ulangi tiap minggu:</b> ${[1,2,3,4,5,6,0].map(d=>`<label><input type=checkbox name=hari value=${d}> ${HR[d]}</label>`).join('')}</div>${inp('Sampai tanggal (kosong = sekali saja)','sampai','','date')}`}
+ <button class=p>${ed?'Simpan':'Tambah'}</button>${ed||pg?'<button type=button class=s onclick="ed=pg=null;go()">Batal</button>':''}</form></div>
  <div class=c><h3>Tabel jadwal mingguan</h3><div class=f><button class=s onclick="wk=addD(wk,-7);go()">◀</button><input type=date value=${wk} onchange="wk=this.value||wk;go()"><button class=s onclick="wk=addD(wk,7);go()">▶</button> ${w0} s/d ${days[6]}</div>
  <table><tr><th>Jam${days.map(d=>`<th>${HR[wd(d)]} ${d.slice(8)}/${d.slice(5,7)}`).join('')}
- ${jams.map(j=>`<tr><td><b>${j}</b>${days.map(d=>`<td style="white-space:normal;vertical-align:top;min-width:120px">${W.filter(x=>x.tgl==d&&x.jam==j).map(x=>`<div style="border-left:3px solid var(--g);padding-left:5px;margin-bottom:4px"><b>${nm('guru',x.guru)}</b> (${x.dur}j)<br>${nms(x)}</div>`).join('')}`).join('')}`).join('')||'<tr><td colspan=8>Tidak ada jadwal minggu ini.'}</table></div>
+ ${jams.map(j=>`<tr><td><b>${j}</b>${days.map(d=>`<td style="white-space:normal;vertical-align:top;min-width:120px">${W.filter(x=>x.tgl==d&&x.jam==j).map(x=>`<div style="border-left:3px solid var(--g);padding-left:5px;margin-bottom:4px"><b>${nm('guru',x.guru)}</b> (${x.dur}j)${x.pengganti?' ↻':''}<br>${nms(x)}</div>`).join('')}`).join('')}`).join('')||'<tr><td colspan=8>Tidak ada jadwal minggu ini.'}</table></div>
  <div class=c><h3>Daftar & kehadiran ${bln}</h3><p style="margin:0 0 8px"><button class=p onclick="A.auto()">✔ Konfirmasi hadir otomatis (semua s/d hari ini)</button></p><p style="color:#666;margin:0 0 8px">Atau manual: klik nama siswa untuk ganti status ○ terjadwal → ✔ hadir → ✖ absen.</p>
  <table><tr><th>Tanggal<th>Jam<th>Guru<th>Siswa<th>Gaji/jam<th>Aksi
- ${L.map(x=>`<tr><td>${x.tgl}<td>${x.jam} (${x.dur}j)<td>${nm('guru',x.guru)}<td style="white-space:normal">${x.peserta.map(p=>`<button class=s onclick="A.cy('${x.id}','${p.s}')">${IC[p.st]} ${nm('siswa',p.s)}</button>`).join(' ')}<td>${rp(x.gaji)}<td><button class=s onclick="A.all('${x.id}')">Hadir semua</button> <button class=s onclick="ed='${x.id}';go()">Ubah</button> <button class=s onclick="A.dj('${x.id}')">Hapus</button>`).join('')||'<tr><td colspan=6>Belum ada jadwal bulan ini.'}</table></div>
+ ${L.map(x=>`<tr><td>${x.tgl}<td>${x.jam} (${x.dur}j)${x.pengganti?' <small>pengganti</small>':''}<td>${nm('guru',x.guru)}<td style="white-space:normal">${x.peserta.map(p=>pb(x,p)).join(' ')}<td>${rp(x.gaji)}<td><button class=s onclick="A.all('${x.id}')">Hadir semua</button> <button class=s onclick="ed='${x.id}';pg=null;go();scrollTo(0,0)">Ubah</button> <button class=s onclick="A.dj('${x.id}')">Hapus</button>`).join('')||'<tr><td colspan=6>Belum ada jadwal bulan ini.'}</table></div>
  <div class=c><h3>Rekap ${bln} per siswa</h3><table><tr><th>Siswa<th>Hadir<th>Jam hadir<th>Terjadwal
  ${db.siswa.map(s=>`<tr><td>${esc(s.nama)}<td>${hd(s,bln)}x<td>${jam(s,bln)} jam<td>${L.filter(x=>x.peserta.some(p=>p.s==s.id)).length}x`).join('')}</table></div>`};
 A.sj=e=>{const d=fd(e),f=e.target,ss=[...f.querySelectorAll('[name=siswa]:checked')].map(i=>i.value),o=db.jadwal.find(x=>x.id==ed),g=db.guru.find(x=>x.id==d.guru);
  if(!g||!ss.length)return alert('Pilih guru dan minimal 1 siswa (tambah di menu Siswa & Guru).');
+ if(ss.length>1&&ss.some(i=>(db.siswa.find(z=>z.id==i)||{}).kelas=='private'))return alert('Kelas private hanya boleh 1 siswa per sesi.');
  const mk=tgl=>({guru:d.guru,tgl,jam:d.jam,dur:d.dur,gaji:d.gaji||g.tarif,peserta:ss.map(s=>({s,st:((o&&o.peserta.find(p=>p.s==s))||{}).st||'terjadwal'}))});
  if(o){if(lk(d.tgl)||lk(o.tgl))return;Object.assign(o,mk(d.tgl));ed=null}
- else{const hr=[...f.querySelectorAll('[name=hari]:checked')].map(i=>+i.value),end=d.sampai>d.tgl?d.sampai:d.tgl;if(!hr.length)hr.push(wd(d.tgl));let n=0,sk=0;
-  for(let t=d.tgl,i=0;t<=end&&i<400;t=addD(t,1),i++)if(end==d.tgl&&i==0||hr.includes(wd(t)))db.tutup[ym(t)]?sk++:(db.jadwal.push({id:uid(),...mk(t)}),n++);
+ else{const hr=[...f.querySelectorAll('[name=hari]:checked')].map(i=>+i.value),end=d.sampai>d.tgl?d.sampai:d.tgl;if(!hr.length)hr.push(wd(d.tgl));let n=0,sk=0,nid;
+  for(let t=d.tgl,i=0;t<=end&&i<400;t=addD(t,1),i++)if(end==d.tgl&&i==0||hr.includes(wd(t)))db.tutup[ym(t)]?sk++:(db.jadwal.push({id:nid=uid(),...mk(t),...(pg?{pengganti:1}:{})}),n++);
+  if(pg&&n){const op=(db.jadwal.find(x=>x.id==pg.j)||{peserta:[]}).peserta.find(p=>p.s==pg.s);if(op)op.gt=nid;pg=null}
   if(n>1||sk)alert(n+' jadwal dibuat'+(sk?', '+sk+' dilewati karena bulannya sudah ditutup':''))}
  save();go()};
 A.cy=(id,s)=>{const j=db.jadwal.find(x=>x.id==id);if(lk(j.tgl))return;const p=j.peserta.find(x=>x.s==s);p.st={terjadwal:'hadir',hadir:'absen',absen:'terjadwal'}[p.st];save();go()};
 A.all=id=>{const j=db.jadwal.find(x=>x.id==id);if(lk(j.tgl))return;j.peserta.forEach(p=>p.st='hadir');save();go()};
 A.auto=()=>{let n=0;db.jadwal.forEach(j=>{if(j.tgl<=today()&&!db.tutup[ym(j.tgl)])j.peserta.forEach(p=>{if(p.st=='terjadwal'){p.st='hadir';n++}})});save();go();alert(n+' kehadiran dikonfirmasi')};
-A.dj=id=>{const j=db.jadwal.find(x=>x.id==id);if(lk(j.tgl)||!confirm('Hapus jadwal ini?'))return;db.jadwal=db.jadwal.filter(x=>x.id!=id);save();go()};
+A.dj=id=>{const j=db.jadwal.find(x=>x.id==id);if(lk(j.tgl)||!confirm('Hapus jadwal ini?'))return;db.jadwal=db.jadwal.filter(x=>x.id!=id);db.jadwal.forEach(j=>j.peserta.forEach(p=>{if(p.gt==id)delete p.gt}));save();go()};
 A.add=(k,e)=>{db[k].push({id:uid(),...fd(e)});save();go()};
 A.del=(k,id)=>{const x=db[k].find(x=>x.id==id);if(x.tgl&&lk(x.tgl)||!confirm('Hapus data ini?'))return;db[k]=db[k].filter(x=>x.id!=id);save();go()};
 
-V.data=()=>`<div class=c><h3>Siswa</h3><form class=f onsubmit="A.add('siswa',event)">${inp('Nama','nama','','text','required')}${inp('Tarif per jam (Rp)','tarif','','number','required min=0')}${lb('No. WA (628…)','<input name=hp type=tel>')}${inp('Tgl jatuh tempo','tempo',1,'number','min=1 max=28')}<button class=p>Tambah</button></form>
- <table><tr><th>Nama<th>Tarif/jam<th>WA<th>Jatuh tempo<th>${db.siswa.map(s=>`<tr><td>${esc(s.nama)}<td>${rp(s.tarif)}<td>${esc(s.hp)}<td>tgl ${s.tempo}<td><button class=s onclick="A.del('siswa','${s.id}')">Hapus</button>`).join('')}</table></div>
+V.data=()=>`<div class=c><h3>Siswa</h3><form class=f onsubmit="A.add('siswa',event)">${inp('Nama','nama','','text','required')}${lb('Kelas','<select name=kelas><option value=private>Private</option><option value=grup>Grup</option></select>')}${lb('Pembayaran','<select name=jenis><option value=awal>Bayar di awal</option><option value=akhir>Bayar di akhir</option></select>')}${inp('Tarif per sesi (Rp)','tarif','','number','required min=0')}${lb('No. WA (628…)','<input name=hp type=tel>')}${inp('Tgl jatuh tempo (bayar di awal)','tempo',1,'number','min=1 max=28')}<button class=p>Tambah</button></form>
+ <table><tr><th>Nama<th>Kelas<th>Bayar<th>Tarif/sesi<th>WA<th>Jatuh tempo<th>${db.siswa.map(s=>`<tr><td>${esc(s.nama)}<td>${s.kelas=='private'?'Private':'Grup'}<td>${s.jenis=='akhir'?'Di akhir':'Di awal'}<td>${rp(s.tarif)}<td>${esc(s.hp)}<td>tgl ${s.tempo}<td><button class=s onclick="A.del('siswa','${s.id}')">Hapus</button>`).join('')}</table></div>
  <div class=c><h3>Guru</h3><form class=f onsubmit="A.add('guru',event)">${inp('Nama','nama','','text','required')}${inp('Gaji default per jam (Rp)','tarif','','number','required min=0')}<button class=p>Tambah</button></form>
  <table><tr><th>Nama<th>Gaji default/jam<th>${db.guru.map(g=>`<tr><td>${esc(g.nama)}<td>${rp(g.tarif)}<td><button class=s onclick="A.del('guru','${g.id}')">Hapus</button>`).join('')}</table></div>`;
 
-V.tagihan=()=>`<div class=c><h3>Tagihan ${bln}</h3><p style="margin:0 0 8px;color:#666">Biaya = jam hadir × tarif per jam.</p><table><tr><th>Siswa<th>Jam hadir<th>Tarif<th>Total<th>Status<th>
- ${db.siswa.map(s=>{const n=jam(s,bln),k=s.id+'|'+bln,l=db.bayar[k];return `<tr><td>${esc(s.nama)}<td>${n} jam<td>${rp(s.tarif)}/jam<td><b>${rp(n*s.tarif)}</b><td class=${l?'ok':'no'}>${l?'LUNAS':'BELUM'}<td><button class=s onclick="A.lunas('${k}')">${l?'Batalkan lunas':'Tandai lunas'}</button>`}).join('')}</table></div>`;
+V.tagihan=()=>`<div class=c><h3>Tagihan ${bln}</h3><p style="margin:0 0 8px;color:#666">Biaya = tarif per sesi × jumlah pertemuan. Pertemuan terisi otomatis dari jadwal (tanpa jadwal pengganti), boleh diubah manual. Bayar di awal jatuh tempo sesuai tanggal siswa, bayar di akhir jatuh tempo di akhir bulan.</p>
+ <table><tr><th>Siswa<th>Kelas<th>Bayar<th>Tarif/sesi<th>Pertemuan<th>Total<th>Jatuh tempo<th>Status<th>
+ ${db.siswa.map(s=>{const k=s.id+'|'+bln,l=db.bayar[k];return `<tr><td>${esc(s.nama)}<td>${s.kelas=='private'?'Private':'Grup'}<td>${s.jenis=='akhir'?'Di akhir':'Di awal'}<td>${rp(s.tarif)}<td><input type=number min=0 value=${np(s,bln)} style=width:64px onchange="A.np('${k}',this.value)"> <small>${db.tagih[k]==null?'otomatis':'manual'}</small><td><b>${rp(tg(s,bln))}</b><td>${due(s,bln)}<td class=${l?'ok':'no'}>${l?'LUNAS':'BELUM'}<td><button class=s onclick="A.lunas('${k}')">${l?'Batalkan lunas':'Tandai lunas'}</button>`}).join('')}</table></div>`;
+A.np=(k,v)=>{if(lk(k.split('|')[1]+'-01'))return go();db.tagih[k]=Math.max(0,+v||0);save();go()};
 A.lunas=k=>{if(lk(k.split('|')[1]+'-01'))return;db.bayar[k]=!db.bayar[k];save();go()};
 
 V.gaji=()=>{const L=db.jadwal.filter(x=>ym(x.tgl)==bln&&nh(x)).sort((a,b)=>(a.tgl+a.jam).localeCompare(b.tgl+b.jam));
@@ -118,9 +128,9 @@ A.re=id=>{const q=+prompt('Tambah stok berapa?');if(q>0){db.barang.find(x=>x.id=
 A.jual=e=>{const d=fd(e),b=db.barang.find(x=>x.id==d.barang);if(!b)return alert('Pilih barang.');if(lk(d.tgl))return;if(d.qty>b.stok)return alert('Stok tidak cukup (sisa '+b.stok+').');
  b.stok-=d.qty;db.jual.push({id:uid(),tgl:d.tgl,nama:b.nama,qty:d.qty,total:d.qty*b.harga,hpp:d.qty*b.modal});save();go()};
 
-V.lap=()=>{const pl=S(db.siswa.map(s=>({t:db.bayar[s.id+'|'+bln]?jam(s,bln)*s.tarif:0})),'t'),jl=db.jual.filter(x=>ym(x.tgl)==bln),pj=S(jl,'total'),tot=pl+pj,
+V.lap=()=>{const pl=S(db.siswa.map(s=>({t:db.bayar[s.id+'|'+bln]?tg(s,bln):0})),'t'),jl=db.jual.filter(x=>ym(x.tgl)==bln),pj=S(jl,'total'),tot=pl+pj,
  gg=S(db.guru.map(g=>({t:gj(g,bln)[1]})),'t'),hpp=S(jl,'hpp'),kl=db.keluar.filter(x=>ym(x.tgl)==bln),pk=S(kl,'jumlah'),bersih=tot-gg-hpp-pk,
- belum=S(db.siswa.map(s=>({t:db.bayar[s.id+'|'+bln]?0:jam(s,bln)*s.tarif})),'t');
+ belum=S(db.siswa.map(s=>({t:db.bayar[s.id+'|'+bln]?0:tg(s,bln)})),'t');
  const R=(a,b)=>`<tr><td>${a}<td align=right>${b}`;
  return `<div class=c><h3>Laporan keuangan ${bln}</h3><table>${R('Pendapatan les (yang sudah lunas)',rp(pl))}${R('Pendapatan penjualan barang',rp(pj))}${R('<b>Pendapatan total</b>',`<b>${rp(tot)}</b>`)}
  ${R('Gaji guru','− '+rp(gg))}${R('Modal barang terjual','− '+rp(hpp))}${R('Pengeluaran lain','− '+rp(pk))}${R('<b>Pendapatan bersih</b>',`<b class=${bersih<0?'no':'ok'}>${rp(bersih)}</b>`)}${R('Tagihan les belum lunas',rp(belum))}</table>
@@ -136,7 +146,7 @@ V.akun=()=>`<div class=c><h3>Ganti password</h3><form class=f onsubmit="A.pw(eve
 A.pw=async e=>{const d=fd(e);db.users.find(x=>x.u==sessionStorage.u).h=await sha(d.p);save();e.target.reset();alert('Password diganti.')};
 A.nu=async e=>{const d=fd(e);if(db.users.some(x=>x.u==d.u))return alert('Username sudah dipakai.');db.users.push({u:d.u,h:await sha(d.p)});save();go()};
 A.exp=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db)],{type:'application/json'}));a.download='backup-les-'+today()+'.json';a.click()};
-A.imp=i=>{const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.users||!d.siswa)throw 0;if(!confirm('Timpa semua data dengan backup ini?'))return;db=d;save();go();alert('Data dipulihkan.')}catch{alert('File backup tidak valid.')}};r.readAsText(i.files[0])};
+A.imp=i=>{const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.users||!d.siswa)throw 0;if(!confirm('Timpa semua data dengan backup ini?'))return;d.tagih=d.tagih||{};db=d;save();go();alert('Data dipulihkan.')}catch{alert('File backup tidak valid.')}};r.readAsText(i.files[0])};
 
 async function login(e){const d=fd(e),h=await sha(d.p);if(db.users.some(x=>x.u==d.u&&x.h==h)){sessionStorage.u=d.u;boot()}else $('#err').textContent='Username atau password salah.'}
 function boot(){const on=sessionStorage.u;$('#login').hidden=!!on;$('#top').hidden=!on;$('#app').innerHTML='';if(on){$('#who').textContent=sessionStorage.u;go('jadwal')}}
