@@ -17,10 +17,10 @@ table{width:100%;border-collapse:collapse}td,th{padding:5px;border-bottom:1px so
 </style>
 <div id=M></div><nav id=nv></nav><div id=bn></div><main id=app></main>
 <script>
-const $=s=>document.querySelector(s),rp=n=>'Rp'+Math.round(n).toLocaleString('id-ID'),id=()=>Math.random().toString(36).slice(2,9);
+const $=s=>document.querySelector(s),rp=n=>(n<0?'-':'')+'Rp'+Math.round(Math.abs(n)).toLocaleString('id-ID'),id=()=>Math.random().toString(36).slice(2,9);
 const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const TODAY=ymd(new Date()),NOW=TODAY.slice(0,7),H=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
-let D={teachers:[],classes:[],students:[],ev:{},bills:{},pays:{},closed:{}},tab='today',day=TODAY,mon=NOW,sub;
+let D={teachers:[],classes:[],students:[],ev:{},bills:{},pays:{},closed:{},items:[],sales:[],buys:[]},tab='today',day=TODAY,mon=NOW,sub;
 const SB='https://vbouwkhdaecalbyxvito.supabase.co',KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZib3V3a2hkYWVjYWxieXh2aXRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUyMTgxMzQsImV4cCI6MjExMDc5NDEzNH0.aggwVDTYpbCMAZL_5g6w-urC2OmkdsoFO0O36UYzJU8',EM=u=>{u=u.trim().toLowerCase();return u.includes('@')?u:u+'@les.app'};
 let ses=null;try{ses=JSON.parse(localStorage.getItem('ses'))}catch{}
 const setS=x=>{ses=x;try{x?localStorage.setItem('ses',JSON.stringify(x)):localStorage.removeItem('ses')}catch{}};
@@ -114,16 +114,16 @@ V.bill=()=>{const g={};rows().forEach(r=>(g[r.st.name.trim().toLowerCase()]=g[r.
  return`<div class=card><b>${n}</b> · belum lunas ${rp(tot)}${rn?` · berjalan ${rp(rn)}`:''}<div class=s><table>${L.map(r=>{const od=!r.b&&TODAY>r.due+'-10';return`<tr><td>${r.c.name} ${r.m}</td><td>${rp(r.a)}</td><td>${r.b?`Lunas ${r.b.at} <button class=g onclick="unp('${r.k}')">Batalkan</button>`:r.run?'<span>Berjalan, jatuh tempo tgl 1 bulan depan</span>':`<span class="${od?'w':''}">${od?'Belum bayar, lewat tgl 10':'Belum lunas'}</span> <button onclick="lns('${r.k}')">Lunas</button>`}</td></tr>`}).join('')}</table></div>${tot?`<button class=g onclick="wa('${n.replace(/'/g,'')}')">Salin pesan WA</button>`:''}</div>`}).join('')||'<p>Belum ada tagihan.</p>'};
 V.pay=()=>`<input type=month value=${mon} onchange="mon=this.value;draw()">`+D.teachers.map(t=>{const p=pay(t,mon),k=t.id+'|'+mon,z=D.pays[k];
  return`<div class=card><b>${t.name}</b> · ${p.h} jam<br>Mengajar ${rp(p.teach)} (gaji ${rp(p.base)} + bonus ${rp(p.bn)})${p.pj?` + penanggung jawab ${rp(p.pj)}`:''}${p.det.length?'<br><small>'+p.det.join('<br>')+'</small>':''}<br><b>Total ${rp(z?z.amt:p.tot)}</b> ${z?'· Lunas '+z.at:`<button onclick="pl('${k}')">Lunas</button>`}<button class=g onclick="pcsv('${t.id}','${mon}')">Unduh Excel</button></div>`}).join('');
-V.rep=()=>{const inc=[],exp=[];D.students.forEach(s=>s.fee&&s.regM==mon&&inc.push(['Pendaftaran '+s.name,s.fee]));
+V.rep=()=>{const inc=[],exp=[];D.students.forEach(s=>s.fee&&s.regM==mon&&inc.push(['Pendaftaran '+s.name,s.fee]));D.sales.filter(x=>x.date.startsWith(mon)).forEach(x=>inc.push(['Jual '+x.name+' x'+x.qty,x.qty*x.price]));D.buys.filter(x=>x.date.startsWith(mon)).forEach(x=>exp.push(['Beli '+x.name+' x'+x.qty,x.cost]));
  Object.entries(D.bills).forEach(([k,b])=>b.at.slice(0,7)==mon&&inc.push(['Les '+nm(k.split('|')[0]),b.amt]));
  Object.entries(D.pays).forEach(([k,z])=>z.at.slice(0,7)==mon&&exp.push(['Gaji '+tn(k.split('|')[0])+' ('+k.split('|')[1]+')',z.amt]));
- const sum=a=>a.reduce((x,y)=>x+y[1],0),cnt={};Object.values(D.ev).forEach(e=>e.ok&&e.pr.forEach(i=>cnt[i]=(cnt[i]||0)+1));
+ const J=x=>JSON.stringify(x).replace(/'/g,'&#39;'),sum=a=>a.reduce((x,y)=>x+y[1],0),cnt={},g=(a,p)=>sum(a.filter(r=>r[0].startsWith(p)));Object.values(D.ev).forEach(e=>e.ok&&e.pr.forEach(i=>cnt[i]=(cnt[i]||0)+1));
  const run=sessions(mon).filter(s=>s.e.ok).sort((a,b)=>a.d<b.d?-1:1);
- return`<input type=month value=${mon} onchange="mon=this.value;draw()"><div class=card><b>Keuangan ${mon}</b><br>Pendapatan ${rp(sum(inc))}<br>Pengeluaran ${rp(sum(exp))}<br><b>Pendapatan bersih ${rp(sum(inc)-sum(exp))}</b><br>
- <button class=g onclick='csv("keuangan-${mon}",[["Jenis","Uraian","Jumlah"],...${JSON.stringify(inc.map(r=>["Pemasukan",...r]).concat(exp.map(r=>["Pengeluaran",...r])))}])'>Unduh Excel</button>
+ return`<input type=month value=${mon} onchange="mon=this.value;draw()"><div class=card><b>Keuangan ${mon}</b><br>Pendapatan ${rp(sum(inc))}<br><small>Pendaftaran ${rp(g(inc,'Pendaftaran'))} · Les ${rp(g(inc,'Les'))} · Jual barang ${rp(g(inc,'Jual'))}</small><br>Pengeluaran ${rp(sum(exp))}<br><small>Gaji guru & PJ ${rp(g(exp,'Gaji'))} · Beli barang ${rp(g(exp,'Beli'))}</small><br><b>Pendapatan bersih ${rp(sum(inc)-sum(exp))}</b><br>
+ <button class=g onclick='csv("keuangan-${mon}",[["Jenis","Uraian","Jumlah"],...${J(inc.map(r=>["Pemasukan",...r]).concat(exp.map(r=>["Pengeluaran",...r])))}])'>Unduh Excel</button>
  <button onclick="D.closed['${mon}']=!D.closed['${mon}'];save()">${D.closed[mon]?'Buka bulan':'Tutup bulan'}</button></div>
- <div class=card><b>Kehadiran per siswa</b><table>${D.students.map(s=>`<tr><td>${s.name}</td><td>${cnt[s.id]||0}x hadir</td></tr>`).join('')}</table><button class=g onclick='csv("kehadiran-siswa",[["Siswa","Jumlah hadir"],...${JSON.stringify(D.students.map(s=>[s.name,cnt[s.id]||0]))}])'>Unduh Excel</button></div>
- <div class=card><b>Kelas yang sudah berjalan</b><table>${run.map(s=>`<tr><td>${s.d}</td><td>${s.c.name}</td><td>${s.e.pr.length} hadir</td></tr>`).join('')}</table><button class=g onclick='csv("kelas-berjalan-${mon}",[["Tanggal","Kelas","Guru","Hadir"],...${JSON.stringify(run.map(s=>[s.d,s.c.name,tn(s.c.teacherId),s.e.pr.map(nm).join("; ")]))}])'>Unduh Excel</button></div>`};
+ <div class=card><b>Kehadiran per siswa</b><table>${D.students.map(s=>`<tr><td>${s.name}</td><td>${cnt[s.id]||0}x hadir</td></tr>`).join('')}</table><button class=g onclick='csv("kehadiran-siswa",[["Siswa","Jumlah hadir"],...${J(D.students.map(s=>[s.name,cnt[s.id]||0]))}])'>Unduh Excel</button></div>
+ <div class=card><b>Kelas yang sudah berjalan</b><table>${run.map(s=>`<tr><td>${s.d}</td><td>${s.c.name}</td><td>${s.e.pr.length} hadir</td></tr>`).join('')}</table><button class=g onclick='csv("kelas-berjalan-${mon}",[["Tanggal","Kelas","Guru","Hadir"],...${J(run.map(s=>[s.d,s.c.name,tn(s.c.teacherId),s.e.pr.map(nm).join("; ")]))}])'>Unduh Excel</button></div>`};
 let fl={t:'',r:'',a:8,b:21,du:1,sel:null};
 function dd(ds){const{F,ss}=freeMap(),R=F[ds]||[],bz=ss.filter(x=>x.d==ds).sort((a,b)=>a.t<b.t?-1:1),p2=x=>String(x).padStart(2,'0');
  M.innerHTML=`<div class=md><h3>${H[new Date(ds+'T00:00').getDay()]}, ${ds.slice(8)}/${ds.slice(5,7)}/${ds.slice(0,4)}</h3>
@@ -153,9 +153,26 @@ V.free=()=>{const n=new Date(+mon.slice(0,4),+mon.slice(5),0).getDate(),off=new 
  <label>Sampai jam<select onchange="fl.b=+this.value;draw()">${op(hrs(1,24),fl.b)}</select></label></div>
  <div class=card><b>Total waktu kosong: ${tot%1?tot.toFixed(1):tot} jam</b><br><small>Angka di tanggal = jam kosong hari itu (hijau banyak, kuning sedang, merah sedikit/penuh). Kosong = tidak ada kelas pada guru/ruangan yang dipilih. Ketuk tanggal untuk rincian.</small></div>
  <div class=cal>${c}</div>`};
-const NV=[['today','Hari Ini'],['cls','Kelas'],['free','Jadwal Kosong'],['tch','Guru'],['stu','Siswa'],['bill','Tagihan'],['pay','Gaji'],['rep','Laporan']];
+const IF=[['name','Nama barang (buku, alat tulis, dll)','text'],['price','Harga jual','number'],['stock','Stok','number'],['min','Batas minimal stok','number']];
+const lockd=d=>D.closed[d.slice(0,7)]&&(alert('Bulan '+d.slice(0,7)+' sudah ditutup.'),1);
+function sell(i){const it=D.items.find(x=>x.id==i);form('Jual: '+it.name,[['date','Tanggal','date'],['qty','Jumlah','number'],['price','Harga satuan','number'],['buyer','Pembeli (opsional)','text']],{date:TODAY,qty:1,price:it.price},r=>{
+ r.date=r.date||TODAY;if(!(r.qty>0)){alert('Jumlah harus lebih dari 0.');return false}if(r.qty>it.stock){alert('Stok tidak cukup (sisa '+it.stock+').');return false}if(lockd(r.date))return false;
+ it.stock-=r.qty;D.sales.push({id:id(),date:r.date,itemId:i,name:it.name,qty:r.qty,price:r.price,buyer:r.buyer});save()})}
+function buy(i){const it=D.items.find(x=>x.id==i);form('Beli / tambah stok: '+it.name,[['date','Tanggal','date'],['qty','Jumlah','number'],['cost','Total harga beli (0 jika tanpa pengeluaran)','number']],{date:TODAY,qty:1,cost:0},r=>{
+ r.date=r.date||TODAY;if(!(r.qty>0)){alert('Jumlah harus lebih dari 0.');return false}if(lockd(r.date))return false;
+ it.stock+=r.qty;if(r.cost>0)D.buys.push({id:id(),date:r.date,itemId:i,name:it.name,qty:r.qty,cost:r.cost});save()})}
+function unsale(k){const x=D.sales.find(y=>y.id==k);if(lockd(x.date)||!confirm('Batalkan penjualan ini? Stok dikembalikan.'))return;const it=D.items.find(y=>y.id==x.itemId);if(it)it.stock+=x.qty;D.sales=D.sales.filter(y=>y.id!=k);save()}
+function unbuy(k){const x=D.buys.find(y=>y.id==k);if(lockd(x.date))return;const it=D.items.find(y=>y.id==x.itemId);if(it&&it.stock<x.qty)return alert('Stok sekarang kurang dari jumlah pembelian ini, tidak bisa dibatalkan.');if(!confirm('Batalkan pembelian ini? Stok dikurangi.'))return;if(it)it.stock-=x.qty;D.buys=D.buys.filter(y=>y.id!=k);save()}
+V.stock=()=>{const S=D.sales.filter(x=>x.date.startsWith(mon)).sort((a,b)=>a.date<b.date?1:-1),B=D.buys.filter(x=>x.date.startsWith(mon)).sort((a,b)=>a.date<b.date?1:-1),tS=S.reduce((a,x)=>a+x.qty*x.price,0),tB=B.reduce((a,x)=>a+x.cost,0),J=x=>JSON.stringify(x).replace(/'/g,'&#39;');
+ return`<button onclick="ed('items',IF,{price:0,stock:0,min:0})">+ Barang</button><button class=g onclick='csv("stok",${J([['Barang','Stok','Minimal','Harga jual'],...D.items.map(i=>[i.name,i.stock,i.min,i.price])])})'>Unduh Excel</button>`+
+ (D.items.map(i=>`<div class=card><b>${i.name}</b> · stok <span class="${i.stock<=i.min?'w':''}">${i.stock}</span> (min ${i.min}) · ${rp(i.price)}${i.stock<=i.min?'<br><span class=w>Stok menipis, segera tambah stok</span>':''}<br><button onclick="sell('${i.id}')">Jual</button><button class=g onclick="buy('${i.id}')">Beli / tambah stok</button><button class=g onclick="ed('items',IF,D.items.find(x=>x.id=='${i.id}'))">Ubah</button><button class=g onclick="del('items','${i.id}')">Hapus</button></div>`).join('')||'<p>Belum ada barang.</p>')+
+ `<input type=month value=${mon} onchange="mon=this.value||mon;draw()">
+ <div class=card><b>Penjualan ${mon}: ${rp(tS)}</b><div class=s><table>${S.map(x=>`<tr><td>${x.date.slice(8)}</td><td>${x.name} ×${x.qty}</td><td>${rp(x.qty*x.price)}</td><td><button class=g onclick="unsale('${x.id}')">Batal</button></td></tr>`).join('')||'<tr><td>Belum ada penjualan.</td></tr>'}</table></div></div>
+ <div class=card><b>Pembelian ${mon}: ${rp(tB)}</b><div class=s><table>${B.map(x=>`<tr><td>${x.date.slice(8)}</td><td>${x.name} ×${x.qty}</td><td>${rp(x.cost)}</td><td><button class=g onclick="unbuy('${x.id}')">Batal</button></td></tr>`).join('')||'<tr><td>Belum ada pembelian.</td></tr>'}</table></div>
+ <button class=g onclick='csv("stok-riwayat-${mon}",${J([['Tanggal','Jenis','Barang','Jumlah','Total'],...S.map(x=>[x.date,'Penjualan',x.name,x.qty,x.qty*x.price]),...B.map(x=>[x.date,'Pembelian',x.name,x.qty,x.cost])])})'>Unduh riwayat Excel</button></div>`};
+const NV=[['today','Hari Ini'],['cls','Kelas'],['free','Jadwal Kosong'],['tch','Guru'],['stu','Siswa'],['bill','Tagihan'],['pay','Gaji'],['stock','Stok'],['rep','Laporan']];
 function draw(){$('#nv').innerHTML=NV.map(([k,l])=>`<b class="${k==tab?'on':''}" onclick="tab='${k}';draw()">${l}</b>`).join('')+'<b onclick="api(\'logout\',{}).then(()=>location.reload())">Keluar</b>';
- const o=rows().filter(r=>!r.b&&TODAY>r.due+'-10').length;$('#bn').innerHTML=o?`<div class=bn>${o} tagihan belum lunas lewat tanggal 10</div>`:'';$('#app').innerHTML=V[tab]()}
+ const o=rows().filter(r=>!r.b&&TODAY>r.due+'-10').length,lo=D.items.filter(i=>i.stock<=i.min).length;$('#bn').innerHTML=(o?`<div class=bn>${o} tagihan belum lunas lewat tanggal 10</div>`:'')+(lo?`<div class=bn style="background:#f59e0b;color:#1b2a41">${lo} barang stok menipis (lihat menu Stok)</div>`:'');$('#app').innerHTML=V[tab]()}
 function login(){M.innerHTML=`<div class=md><h3>Masuk</h3><label>Username<input id=lu></label><label>Password<input id=lp type=password></label><button onclick="api('login',{u:lu.value,p:lp.value}).then(init).catch(e=>alert('Gagal masuk: '+e))">Masuk</button></div>`}
 function init(){M.innerHTML='';if(!ses)return login();api('db').then(d=>{D={...D,...d};D.classes.forEach(c=>{if(!c.jd&&c.time)c.jd=(c.once||c.dt||'')+' '+c.time});draw()}).catch(e=>{alert('Login berhasil, tetapi gagal memuat data: '+e+'. Pastikan setup.sql sudah dijalankan di Supabase.');login()})}
 init();
