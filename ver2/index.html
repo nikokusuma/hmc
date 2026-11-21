@@ -30,8 +30,8 @@ const api=async(u,b)=>{
  if(u=='logout'){setS(null);return{ok:1}}
  if(!ses)throw 401;
  if(u=='unlock')return{ok:(await sb('/rest/v1/rpc/check_unlock',{method:'POST',body:JSON.stringify({p:b.p})}))===true};
- if(!b){const r=await sb('/rest/v1/kv?id=eq.main&select=data');return r[0]?r[0].data:{}}
- await sb('/rest/v1/kv?id=eq.main',{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({data:b})});return{ok:1}};
+ if(!b){const r=await sb('/rest/v1/les_data?id=eq.main&select=data');return r[0]?r[0].data:{}}
+ await sb('/rest/v1/les_data?id=eq.main',{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({data:b})});return{ok:1}};
 const save=()=>api('db',D).then(draw).catch(()=>alert('Gagal menyimpan. Silakan login ulang.'));
 const nm=i=>(D.students.find(x=>x.id==i)||{}).name||'?',tn=i=>(D.teachers.find(x=>x.id==i)||{}).name||'-';
 const mins=t=>{const[a,b]=t.split(':');return a*60+ +b},nx=m=>{const[y,o]=m.split('-');return ymd(new Date(y,o,1)).slice(0,7)};
