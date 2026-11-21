@@ -18,13 +18,13 @@ const $=s=>document.querySelector(s),rp=n=>'Rp'+Math.round(n).toLocaleString('id
 const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const TODAY=ymd(new Date()),NOW=TODAY.slice(0,7),H=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
 let D={teachers:[],classes:[],students:[],ev:{},bills:{},pays:{},closed:{}},tab='today',day=TODAY,mon=NOW,sub;
-const SB='https://vbouwkhdaecalbyxvito.supabase.co',KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZib3V3a2hkYWVjYWxieXh2aXRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUyMTgxMzQsImV4cCI6MjExMDc5NDEzNH0.aggwVDTYpbCMAZL_5g6w-urC2OmkdsoFO0O36UYzJU8',EM=u=>u.trim().toLowerCase()+'@les.app';
+const SB='https://vbouwkhdaecalbyxvito.supabase.co',KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZib3V3a2hkYWVjYWxieXh2aXRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUyMTgxMzQsImV4cCI6MjExMDc5NDEzNH0.aggwVDTYpbCMAZL_5g6w-urC2OmkdsoFO0O36UYzJU8',EM=u=>{u=u.trim().toLowerCase();return u.includes('@')?u:u+'@les.app'};
 let ses=null;try{ses=JSON.parse(localStorage.getItem('ses'))}catch{}
 const setS=x=>{ses=x;try{x?localStorage.setItem('ses',JSON.stringify(x)):localStorage.removeItem('ses')}catch{}};
 const sb=async(p,o={},retry=1)=>{const r=await fetch(SB+p,{...o,headers:{apikey:KEY,'Content-Type':'application/json',Authorization:'Bearer '+(ses?ses.access_token:KEY),...(o.headers||{})}});
  if(r.status==401&&ses&&retry&&p.startsWith('/rest')){const t=await fetch(SB+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:ses.refresh_token})});
   if(t.ok){setS(await t.json());return sb(p,o,0)}setS(null)}
- if(!r.ok)throw r.status;return r.status==204?{}:r.json()};
+ if(!r.ok){let m;try{m=await r.json()}catch{}throw (m&&(m.error_description||m.msg||m.message))||r.status}return r.status==204?{}:r.json()};
 const api=async(u,b)=>{
  if(u=='login'){setS(await sb('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify({email:EM(b.u),password:b.p})}));return{ok:1}}
  if(u=='logout'){setS(null);return{ok:1}}
@@ -105,7 +105,7 @@ V.rep=()=>{const inc=[],exp=[];D.students.forEach(s=>s.fee&&s.regM==mon&&inc.pus
 const NV=[['today','Hari Ini'],['cls','Kelas'],['tch','Guru'],['stu','Siswa'],['bill','Tagihan'],['pay','Gaji'],['rep','Laporan']];
 function draw(){$('#nv').innerHTML=NV.map(([k,l])=>`<b class="${k==tab?'on':''}" onclick="tab='${k}';draw()">${l}</b>`).join('')+'<b onclick="api(\'logout\',{}).then(()=>location.reload())">Keluar</b>';
  const o=rows().filter(r=>!r.b&&TODAY>r.due+'-10').length;$('#bn').innerHTML=o?`<div class=bn>${o} tagihan belum lunas lewat tanggal 10</div>`:'';$('#app').innerHTML=V[tab]()}
-function login(){M.innerHTML=`<div class=md><h3>Masuk</h3><label>Username<input id=lu></label><label>Password<input id=lp type=password></label><button onclick="api('login',{u:lu.value,p:lp.value}).then(init).catch(()=>alert('Username atau password salah'))">Masuk</button></div>`}
+function login(){M.innerHTML=`<div class=md><h3>Masuk</h3><label>Username<input id=lu></label><label>Password<input id=lp type=password></label><button onclick="api('login',{u:lu.value,p:lp.value}).then(init).catch(e=>alert('Gagal masuk: '+e))">Masuk</button></div>`}
 function init(){M.innerHTML='';api('db').then(d=>{D={...D,...d};draw()}).catch(login)}
 init();
 </script>
