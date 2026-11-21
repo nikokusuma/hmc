@@ -48,34 +48,46 @@ function sessions(m){const[Y,M2]=m.split('-').map(Number),out=[],n=new Date(Y,M2
   ds.forEach(d=>{const k=c.id+'|'+d+(i?'|'+i:''),e=D.ev[k]||{};out.push({k,c,d:e.mv?e.mv.d:d,t:e.mv?e.mv.t:sl.time,e})})}));return out}
 const S=k=>sessions(k.split('|')[1].slice(0,7)).find(s=>s.k==k);
 const clash=(c,d,t,k)=>sessions(d.slice(0,7)).some(s=>s.k!=k&&!s.e.cx&&s.d==d&&(s.c.teacherId==c.teacherId||(c.room&&s.c.room==c.room))&&mins(s.t)<mins(t)+c.hours*60&&mins(t)<mins(s.t)+s.c.hours*60);
-const amt=(c,st,m)=>{const ss=sessions(m).filter(s=>s.c===c&&!s.e.cx);return c.rate*c.hours*(c.pay=='awal'?ss.length:ss.filter(s=>s.e.ok&&s.e.pr.includes(st.id)).length)};
+const sd=st=>st.start||(st.since?st.since+'-01':'0000-00-00');
+const mems=st=>[...st.classIds.map(c=>({c,from:sd(st),to:'9999'})),...(st.prev||[]).map(p=>({c:p.c,from:p.from,to:p.to}))];
+const amt=(c,st,m,f,t)=>{f=f||sd(st);t=t||'9999';const ss=sessions(m).filter(s=>s.c===c&&!s.e.cx&&s.d>=f&&s.d<=t);return c.rate*c.hours*(c.pay=='awal'?ss.length:ss.filter(s=>s.e.ok&&s.e.pr.includes(st.id)).length)};
 function rows(){const out=[],ms=[-2,-1,0].map(i=>{const d=new Date();d.setMonth(d.getMonth()+i,1);return ymd(d).slice(0,7)});
- D.students.filter(s=>s.status=='active').forEach(st=>st.classIds.forEach(cid=>{const c=D.classes.find(x=>x.id==cid);if(!c)return;
-  ms.forEach(m=>{if(m<st.since||m>NOW)return;const k=st.id+'|'+c.id+'|'+m,b=D.bills[k],a=b?b.amt:amt(c,st,m);if(a>0||b)out.push({k,st,c,m,a,b,due:c.pay=='awal'?m:nx(m),run:c.pay=='akhir'&&m>=NOW})})}));return out}
+ D.students.filter(s=>s.status=='active').forEach(st=>mems(st).forEach(mb=>{const c=D.classes.find(x=>x.id==mb.c);if(!c)return;
+  ms.forEach(m=>{if(m<mb.from.slice(0,7)||m>mb.to.slice(0,7)||m>NOW)return;const k=st.id+'|'+c.id+'|'+m,b=D.bills[k],a=b?b.amt:amt(c,st,m,mb.from,mb.to);if(a>0||b)out.push({k,st,c,m,a,b,due:c.pay=='awal'?m:nx(m),run:c.pay=='akhir'&&m>=NOW})})}));return out}
 const bon=s=>{const n=s.e.pr.length,c=s.c,b=c.bm||'pp';return n<2?0:c.hours*c.bonus*(b=='flat'?1:b=='px'?n-1:n)};
 const tcost=s=>s.c.hours*s.c.tpay+bon(s);
 function pay(t,m){let base=0,bn=0,pj=0,h=0,det=[];
  sessions(m).forEach(s=>{if(s.e.ok&&s.c.teacherId==t.id){base+=s.c.hours*s.c.tpay;bn+=bon(s);h+=s.c.hours}});
  D.classes.filter(c=>c.pjId==t.id).forEach(c=>{
-  const rev=D.students.filter(st=>st.status=='active'&&st.classIds.includes(c.id)&&m>=st.since).reduce((a,st)=>{const b=D.bills[st.id+'|'+c.id+'|'+m];return a+(b?b.amt:amt(c,st,m))},0);
+  const rev=D.students.reduce((a,st)=>a+mems(st).filter(x=>x.c==c.id&&m>=x.from.slice(0,7)&&m<=x.to.slice(0,7)).reduce((a2,x)=>{const b=D.bills[st.id+'|'+c.id+'|'+m];return a2+(b?b.amt:amt(c,st,m,x.from,x.to))},0),0);
   const cost=sessions(m).filter(s=>s.c===c&&s.e.ok).reduce((a,s)=>a+tcost(s),0);
   if(rev){const v=Math.max(0,rev-cost)*c.pjPct/100;pj+=v;det.push(`PJ ${c.name}: ${c.pjPct}% × (${rp(rev)} − gaji guru & bonus ${rp(cost)}) = ${rp(v)}`)}});
  const teach=base+bn;return{teach,base,bn,pj,h,tot:teach+pj,det}}
+const slotP=sl=>({once:sl.once,wd:sl.once?[new Date(sl.once+'T00:00').getDay()]:(sl.dt||'').split(/[ ,]+/).map(x=>H.indexOf(x.slice(0,3))).filter(x=>x>=0),t:mins(sl.time)});
+const ovl=(a,b,ah,bh)=>(a.once&&b.once?a.once==b.once:a.wd.some(x=>b.wd.includes(x)))&&a.t<b.t+bh*60&&b.t<a.t+ah*60;
+function bentrok(r,self){const mine=slots(r).map(slotP),nn=x=>(x||'').trim().toLowerCase();
+ for(let i=0;i<mine.length;i++)for(let j=i+1;j<mine.length;j++)if(ovl(mine[i],mine[j],r.hours,r.hours))return 'Jadwal di dalam kelas ini saling bertabrakan.';
+ for(const o of D.classes){if(o.id==self)continue;const why=r.teacherId&&o.teacherId==r.teacherId?'guru pengajar sama':nn(r.room)&&nn(o.room)==nn(r.room)?'ruangan sama':'';if(!why)continue;
+  if(mine.some(a=>slots(o).map(slotP).some(b=>ovl(a,b,r.hours,o.hours))))return `Bentrok dengan kelas "${o.name}" (${why}, jam beririsan). Ubah guru, ruangan, atau jam.`}return ''}
 // ---- aksi ----
-function conf(k,all){const s=S(k),en=D.students.filter(x=>x.classIds.includes(s.c.id)),go=pr=>{D.ev[k]={...s.e,ok:1,pr};save()};
+function conf(k,all){const s=S(k),en=D.students.filter(x=>mems(x).some(y=>y.c==s.c.id&&y.from<=s.d&&s.d<=y.to)),go=pr=>{D.ev[k]={...s.e,ok:1,pr};save()};
  if(all)return go(en.map(x=>x.id));form('Siswa yang hadir',en.map(x=>[x.id,x.name,'chk']),{},r=>go(en.filter(x=>r[x.id]).map(x=>x.id)))}
 function cx(k){const s=S(k);if(new Date(s.d+'T'+s.t)<=new Date())return alert('Waktu kelas sudah lewat, tidak bisa dibatalkan.');
  if(confirm('Batalkan jadwal ini?')){D.ev[k]={...s.e,cx:1};save()}}
 function mv(k){const s=S(k);form('Ganti jadwal (1 kali)',[['d','Tanggal','date'],['t','Jam','time']],{d:s.d,t:s.t},r=>{
  if(!r.d||!r.t)return false;if(clash(s.c,r.d,r.t,k)){alert('Bertabrakan dengan jadwal guru atau ruangan lain.');return false}
  D.ev[k]={...s.e,mv:{d:r.d,t:r.t}};save()})}
-const ed=(col,f,v)=>form(v.id?'Ubah':'Tambah',f,v,r=>{if(!r.name)return false;if(col=='classes'&&!slots(r).length){alert('Isi jadwal, contoh: Sen,Rab 16:00; Kam 18:30');return false}if(v.id)Object.assign(v,r);else D[col].push({id:id(),...r});save()});
+const ed=(col,f,v)=>form(v.id?'Ubah':'Tambah',f,v,r=>{if(!r.name)return false;if(col=='classes'){if(!slots(r).length){alert('Isi jadwal, contoh: Sen,Rab 16:00; Kam 18:30');return false}const e=bentrok(r,v.id);if(e){alert(e);return false}}if(v.id)Object.assign(v,r);else D[col].push({id:id(),...r});save()});
 const del=(col,i)=>confirm('Hapus data ini?')&&(D[col]=D[col].filter(x=>x.id!=i),save());
-function stu(v){const n=!v;v=v||{};form(n?'Siswa baru':'Ubah siswa',[['name','Nama','text'],['status','Status','sel',[['active','Sudah dapat kelas'],['waiting','Waiting list']]],['cid','Kelas','sel',[['','-'],...D.classes.map(c=>[c.id,c.name])]],['plan','Rencana kelas (wajib untuk waiting list)','text'],['fee','Biaya pendaftaran','number']],{...v,cid:(v.classIds||[])[0]||'',fee:v.fee||0},r=>{
+function stu(v){const n=!v;v=v||{};const d0=v.start||(v.since?v.since+'-01':TODAY),c0=(v.classIds||[])[0]||'';
+ form(n?'Siswa baru':'Ubah siswa',[['name','Nama','text'],['status','Status','sel',[['active','Sudah dapat kelas'],['waiting','Waiting list']]],['cid','Kelas','sel',[['','-'],...D.classes.map(c=>[c.id,c.name])]],['start','Mulai ikut kelas (tanggal)','date'],['plan','Rencana kelas (wajib untuk waiting list)','text'],['fee','Biaya pendaftaran','number']],{...v,cid:c0,start:d0,fee:v.fee||0},r=>{
  if(!r.name)return false;if(r.status=='waiting'&&!r.plan){alert('Isi rencana kelas.');return false}
- if(!n&&r.cid!=((v.classIds||[])[0]||'')&&rows().some(x=>x.st===v&&!x.b)){alert('Kelas hanya bisa diubah jika tagihan sebelumnya sudah lunas.');return false}
- const o={name:r.name,status:r.status,plan:r.plan,classIds:r.cid&&r.status=='active'?[r.cid]:[]};
- if(n)D.students.push({id:id(),since:NOW,fee:r.fee,regM:NOW,...o});else Object.assign(v,o);save()},560)}
+ const cs=!n&&r.cid!=c0;
+ if(cs&&rows().some(x=>x.st===v&&!x.b&&!x.run)){alert('Kelas hanya bisa diubah jika tagihan sebelumnya sudah lunas.');return false}
+ const ns=cs&&r.start==d0?TODAY:(r.start||TODAY),o={name:r.name,status:r.status,plan:r.plan,start:ns,classIds:r.cid&&r.status=='active'?[r.cid]:[]};
+ if(n)D.students.push({id:id(),since:NOW,fee:r.fee,regM:NOW,...o});
+ else{if(cs&&c0)v.prev=[...(v.prev||[]),{c:c0,from:d0,to:ymd(new Date(new Date(ns+'T00:00').getTime()-864e5))}];Object.assign(v,o)}
+ save()},560)}
 function lns(k){if(D.closed[NOW])return alert('Bulan ini sudah ditutup.');const r=rows().find(x=>x.k==k);D.bills[k]={amt:r.a,at:TODAY};save()}
 function unp(k){const p=prompt('Password khusus untuk membatalkan lunas:');if(p)api('unlock',{p}).then(r=>r.ok?(delete D.bills[k],save()):alert('Password salah'))}
 function wa(name){const L=rows().filter(r=>r.st.name.trim().toLowerCase()==name.trim().toLowerCase()&&!r.b&&!r.run);
