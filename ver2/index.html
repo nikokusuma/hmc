@@ -1,0 +1,98 @@
+<!doctype html><html lang=id><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Les Mandarin</title>
+<style>
+:root{--bg:#f2f5f4;--c:#fff;--t:#14211f;--m:#5b6b68;--a:#0f6b5c;--w:#c2410c;--l:#d9e1df}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1716;--c:#172221;--t:#e8f0ee;--m:#97a8a4;--a:#3fb9a2;--w:#fb923c;--l:#2a3a38}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--t)}
+nav{display:flex;gap:2px;overflow-x:auto;padding:6px;background:var(--c);border-bottom:1px solid var(--l);position:sticky;top:0;z-index:5}
+nav b{padding:8px 12px;border-radius:6px;cursor:pointer;white-space:nowrap;color:var(--m);font-weight:500}nav b.on{background:var(--a);color:var(--bg)}
+main{padding:12px;max-width:900px;margin:auto}.card{background:var(--c);border:1px solid var(--l);border-radius:6px;padding:12px;margin:8px 0}
+button{background:var(--a);color:var(--bg);border:0;border-radius:6px;padding:8px 12px;margin:2px;font:inherit;cursor:pointer}button.g{background:var(--l);color:var(--t)}
+input,select{width:100%;padding:8px;border:1px solid var(--l);border-radius:6px;background:var(--bg);color:var(--t);font:inherit}input[type=checkbox]{width:auto}
+label{display:block;margin:8px 0;color:var(--m);font-size:13px}.md{position:fixed;inset:0;background:var(--bg);padding:16px;overflow:auto;z-index:9;max-width:520px;margin:auto}
+table{width:100%;border-collapse:collapse}td,th{padding:6px;border-bottom:1px solid var(--l);text-align:left;font-size:13px}.w{color:var(--w);font-weight:600}.s{overflow-x:auto}.bn{background:var(--w);color:#fff;padding:8px 12px;text-align:center}
+:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+</style>
+<div id=M></div><nav id=nv></nav><div id=bn></div><main id=app></main>
+<script>
+const $=s=>document.querySelector(s),rp=n=>'Rp'+Math.round(n).toLocaleString('id-ID'),id=()=>Math.random().toString(36).slice(2,9);
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const TODAY=ymd(new Date()),NOW=TODAY.slice(0,7),H=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
+let D={teachers:[],classes:[],students:[],ev:{},bills:{},pays:{},closed:{}},tab='today',day=TODAY,mon=NOW,sub;
+const api=(u,b)=>fetch('/api/'+u,b&&{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.ok?r.json():Promise.reject(r.status));
+const save=()=>api('db',D).then(draw).catch(()=>alert('Gagal menyimpan. Silakan login ulang.'));
+const nm=i=>(D.students.find(x=>x.id==i)||{}).name||'?',tn=i=>(D.teachers.find(x=>x.id==i)||{}).name||'-';
+const mins=t=>{const[a,b]=t.split(':');return a*60+ +b},nx=m=>{const[y,o]=m.split('-');return ymd(new Date(y,o,1)).slice(0,7)};
+function csv(n,R){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+R.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n')],{type:'text/csv'}));a.download=n+'.csv';a.click()}
+function form(title,f,v,ok){M.innerHTML=`<div class=md><h3>${title}</h3>${f.map(([k,l,t,o])=>`<label>${l}${t=='sel'?`<select id=f_${k}>${o.map(([a,b])=>`<option value="${a}" ${a==v[k]?'selected':''}>${b}</option>`).join('')}</select>`:t=='chk'?` <input type=checkbox id=f_${k} ${v[k]?'checked':''}>`:`<input id=f_${k} type=${t} value="${v[k]??''}">`}</label>`).join('')}<button onclick="sub()">Simpan</button><button class=g onclick="M.innerHTML=''">Batal</button></div>`;
+ sub=()=>{const r={};f.forEach(([k,,t])=>{const e=$('#f_'+k);r[k]=t=='chk'?e.checked:t=='number'?+e.value:e.value});if(ok(r)!==false)M.innerHTML=''}}
+// ---- logika ----
+function sessions(m){const[Y,M2]=m.split('-').map(Number),out=[],n=new Date(Y,M2,0).getDate();
+ D.classes.forEach(c=>{const dy=(c.dt||'').split(/[ ,]+/).map(x=>H.indexOf(x.slice(0,3)));
+  const ds=c.once?(c.once.startsWith(m)?[c.once]:[]):[...Array(n)].map((_,i)=>ymd(new Date(Y,M2-1,i+1))).filter(d=>dy.includes(new Date(d+'T00:00').getDay()));
+  ds.forEach(d=>{const k=c.id+'|'+d,e=D.ev[k]||{};out.push({k,c,d:e.mv?e.mv.d:d,t:e.mv?e.mv.t:c.time,e})})});return out}
+const S=k=>sessions(k.split('|')[1].slice(0,7)).find(s=>s.k==k);
+const clash=(c,d,t,k)=>sessions(d.slice(0,7)).some(s=>s.k!=k&&!s.e.cx&&s.d==d&&(s.c.teacherId==c.teacherId||(c.room&&s.c.room==c.room))&&mins(s.t)<mins(t)+c.hours*60&&mins(t)<mins(s.t)+s.c.hours*60);
+const amt=(c,st,m)=>{const ss=sessions(m).filter(s=>s.c===c&&!s.e.cx);return c.rate*c.hours*(c.pay=='awal'?ss.length:ss.filter(s=>s.e.ok&&s.e.pr.includes(st.id)).length)};
+function rows(){const out=[],ms=[-2,-1,0].map(i=>{const d=new Date();d.setMonth(d.getMonth()+i,1);return ymd(d).slice(0,7)});
+ D.students.filter(s=>s.status=='active').forEach(st=>st.classIds.forEach(cid=>{const c=D.classes.find(x=>x.id==cid);if(!c)return;
+  ms.forEach(m=>{if(m<st.since||(c.pay=='akhir'&&m>=NOW))return;const k=st.id+'|'+c.id+'|'+m,b=D.bills[k],a=b?b.amt:amt(c,st,m);if(a>0||b)out.push({k,st,c,m,a,b,due:c.pay=='awal'?m:nx(m)})})}));return out}
+function pay(t,m){let teach=0,pj=0,h=0;sessions(m).forEach(s=>{if(!s.e.ok)return;const c=s.c,n=s.e.pr.length;
+ if(c.teacherId==t.id){teach+=c.hours*c.tpay+(n>=2?c.hours*c.bonus:0);h+=c.hours}
+ if(c.pjId==t.id)pj+=c.pjPct/100*c.rate*c.hours*n});return{teach,pj,h,tot:teach+pj}}
+// ---- aksi ----
+function conf(k,all){const s=S(k),en=D.students.filter(x=>x.classIds.includes(s.c.id)),go=pr=>{D.ev[k]={...s.e,ok:1,pr};save()};
+ if(all)return go(en.map(x=>x.id));form('Siswa yang hadir',en.map(x=>[x.id,x.name,'chk']),{},r=>go(en.filter(x=>r[x.id]).map(x=>x.id)))}
+function cx(k){const s=S(k);if(new Date(s.d+'T'+s.t)<=new Date())return alert('Waktu kelas sudah lewat, tidak bisa dibatalkan.');
+ if(confirm('Batalkan jadwal ini?')){D.ev[k]={...s.e,cx:1};save()}}
+function mv(k){const s=S(k);form('Ganti jadwal (1 kali)',[['d','Tanggal','date'],['t','Jam','time']],{d:s.d,t:s.t},r=>{
+ if(!r.d||!r.t)return false;if(clash(s.c,r.d,r.t,k)){alert('Bertabrakan dengan jadwal guru atau ruangan lain.');return false}
+ D.ev[k]={...s.e,mv:{d:r.d,t:r.t}};save()})}
+const ed=(col,f,v)=>form(v.id?'Ubah':'Tambah',f,v,r=>{if(!r.name)return false;if(v.id)Object.assign(v,r);else D[col].push({id:id(),...r});save()});
+const del=(col,i)=>confirm('Hapus data ini?')&&(D[col]=D[col].filter(x=>x.id!=i),save());
+function stu(v){const n=!v;v=v||{};form(n?'Siswa baru':'Ubah siswa',[['name','Nama','text'],['status','Status','sel',[['active','Sudah dapat kelas'],['waiting','Waiting list']]],['cid','Kelas','sel',[['','-'],...D.classes.map(c=>[c.id,c.name])]],['plan','Rencana kelas (wajib untuk waiting list)','text'],['fee','Biaya pendaftaran','number']],{...v,cid:(v.classIds||[])[0]||'',fee:v.fee||0},r=>{
+ if(!r.name)return false;if(r.status=='waiting'&&!r.plan){alert('Isi rencana kelas.');return false}
+ if(!n&&r.cid!=((v.classIds||[])[0]||'')&&rows().some(x=>x.st===v&&!x.b)){alert('Kelas hanya bisa diubah jika tagihan sebelumnya sudah lunas.');return false}
+ const o={name:r.name,status:r.status,plan:r.plan,classIds:r.cid&&r.status=='active'?[r.cid]:[]};
+ if(n)D.students.push({id:id(),since:NOW,fee:r.fee,regM:NOW,...o});else Object.assign(v,o);save()})}
+function lns(k){if(D.closed[NOW])return alert('Bulan ini sudah ditutup.');const r=rows().find(x=>x.k==k);D.bills[k]={amt:r.a,at:TODAY};save()}
+function unp(k){const p=prompt('Password khusus untuk membatalkan lunas:');if(p)api('unlock',{p}).then(r=>r.ok?(delete D.bills[k],save()):alert('Password salah'))}
+function wa(name){const L=rows().filter(r=>r.st.name.trim().toLowerCase()==name.trim().toLowerCase()&&!r.b);
+ const t=`Halo, kami mengingatkan tagihan les Mandarin atas nama ${name}:\n${L.map(r=>`- ${r.c.name} ${r.m}: ${rp(r.a)}`).join('\n')}\nTotal: ${rp(L.reduce((a,r)=>a+r.a,0))}\nMohon dilunasi paling lambat tanggal 10. Terima kasih.`;
+ navigator.clipboard.writeText(t).then(()=>alert('Pesan disalin, tinggal tempel di WhatsApp.'))}
+function pl(k){if(D.closed[NOW])return alert('Bulan ini sudah ditutup.');const[t,m]=k.split('|');if(confirm('Gaji lunas tidak bisa dibatalkan. Lanjut?')){D.pays[k]={amt:pay(D.teachers.find(x=>x.id==t),m).tot,at:TODAY};save()}}
+function pcsv(t,m){const T=D.teachers.find(x=>x.id==t),R=[['Tanggal','Kelas','Jam','Hadir','Gaji','Bonus']];
+ sessions(m).filter(s=>s.e.ok&&s.c.teacherId==t).sort((a,b)=>a.d<b.d?-1:1).forEach(s=>R.push([s.d,s.c.name,s.c.hours,s.e.pr.length,s.c.hours*s.c.tpay,s.e.pr.length>=2?s.c.hours*s.c.bonus:0]));
+ const p=pay(T,m);R.push(['Penanggung jawab','','','',p.pj,''],['Total','','','',p.tot,'']);csv('gaji-'+T.name+'-'+m,R)}
+// ---- tampilan ----
+const V={};
+V.today=()=>{const ss=sessions(day.slice(0,7)).filter(s=>s.d==day).sort((a,b)=>a.t<b.t?-1:1);
+ return`<input type=date value=${day} onchange="day=this.value;draw()">`+(ss.map(s=>{const c=s.c;
+ return`<div class=card><b>${s.t} ${c.name}</b> (${c.type}, ${c.hours} jam)<br>${tn(c.teacherId)} ${c.room?'· ruang '+c.room:''} ${s.e.mv?'<i>· jadwal pengganti</i>':''}<br>${s.e.cx?'<span class=w>Dibatalkan</span>':s.e.ok?'Hadir: '+(s.e.pr.map(nm).join(', ')||'-'):''}${s.e.cx||s.e.ok?'':`<br><button onclick="conf('${s.k}',1)">Hadir semua</button><button class=g onclick="conf('${s.k}')">Pilih siswa</button><button class=g onclick="mv('${s.k}')">Ganti jadwal</button><button class=g onclick="cx('${s.k}')">Batalkan</button>`}</div>`}).join('')||'<p>Tidak ada kelas di tanggal ini.</p>')};
+const CF=[['name','Nama kelas','text'],['type','Jenis','sel',[['group','Grup'],['private','Private']]],['dt','Hari berulang (mis. Sen,Rab)','text'],['once','Atau tanggal sekali datang (kosongkan jika berulang)','date'],['time','Jam mulai','time'],['hours','Durasi (jam)','number'],['room','Ruangan','text'],['rate','Tarif siswa per jam','number'],['tpay','Gaji guru per jam','number'],['bonus','Bonus guru per jam (jika hadir ≥2)','number'],['pay','Pembayaran','sel',[['awal','Di awal'],['akhir','Di akhir']]],['pjPct','Persen penanggung jawab','number']];
+const cf=()=>[...CF,['teacherId','Guru pengajar','sel',D.teachers.map(t=>[t.id,t.name])],['pjId','Guru penanggung jawab','sel',[['','-'],...D.teachers.filter(t=>t.pj).map(t=>[t.id,t.name])]]];
+V.cls=()=>`<button onclick="ed('classes',cf(),{type:'group',pay:'awal',hours:1,pjPct:0,bonus:0})">+ Kelas</button>`+D.classes.map(c=>`<div class=card><b>${c.name}</b> (${c.type}) · ${c.once||c.dt} ${c.time}, ${c.hours} jam<br>Guru: ${tn(c.teacherId)} · PJ: ${tn(c.pjId)} ${c.pjPct}%<br>Tarif ${rp(c.rate)}/jam · gaji guru ${rp(c.tpay)}/jam · bonus ${rp(c.bonus)}/jam · bayar di ${c.pay}<br><button class=g onclick="ed('classes',cf(),D.classes.find(x=>x.id=='${c.id}'))">Ubah</button><button class=g onclick="del('classes','${c.id}')">Hapus</button></div>`).join('');
+const TF=[['name','Nama','text'],['inc','Insentif','number'],['pj','Bisa jadi penanggung jawab','chk']];
+V.tch=()=>`<button onclick="ed('teachers',TF,{})">+ Guru</button>`+D.teachers.map(t=>`<div class=card><b>${t.name}</b> · insentif ${rp(t.inc)} ${t.pj?'· penanggung jawab':''}<br><button class=g onclick="ed('teachers',TF,D.teachers.find(x=>x.id=='${t.id}'))">Ubah</button><button class=g onclick="del('teachers','${t.id}')">Hapus</button></div>`).join('');
+V.stu=()=>`<button onclick="stu()">+ Siswa</button>`+D.students.map(s=>`<div class=card><b>${s.name}</b> · ${s.status=='waiting'?'Waiting list: '+s.plan:(s.classIds.map(i=>(D.classes.find(c=>c.id==i)||{}).name).join(', ')||'belum ada kelas')}<br><button class=g onclick="stu(D.students.find(x=>x.id=='${s.id}'))">Ubah / pindah kelas</button><button class=g onclick="del('students','${s.id}')">Hapus</button></div>`).join('');
+V.bill=()=>{const g={};rows().forEach(r=>(g[r.st.name.trim().toLowerCase()]=g[r.st.name.trim().toLowerCase()]||[]).push(r));
+ return Object.values(g).map(L=>{const tot=L.filter(r=>!r.b).reduce((a,r)=>a+r.a,0),n=L[0].st.name;
+ return`<div class=card><b>${n}</b> · belum lunas ${rp(tot)}<div class=s><table>${L.map(r=>{const od=!r.b&&TODAY>r.due+'-10';return`<tr><td>${r.c.name} ${r.m}</td><td>${rp(r.a)}</td><td>${r.b?`Lunas ${r.b.at} <button class=g onclick="unp('${r.k}')">Batalkan</button>`:`<span class="${od?'w':''}">${od?'Belum bayar, lewat tgl 10':'Belum lunas'}</span> <button onclick="lns('${r.k}')">Lunas</button>`}</td></tr>`}).join('')}</table></div>${tot?`<button class=g onclick="wa('${n.replace(/'/g,'')}')">Salin pesan WA</button>`:''}</div>`}).join('')||'<p>Belum ada tagihan.</p>'};
+V.pay=()=>`<input type=month value=${mon} onchange="mon=this.value;draw()">`+D.teachers.map(t=>{const p=pay(t,mon),k=t.id+'|'+mon,z=D.pays[k];
+ return`<div class=card><b>${t.name}</b> · ${p.h} jam<br>Mengajar ${rp(p.teach)}${p.pj?` + penanggung jawab ${rp(p.pj)}`:''}<br><b>Total ${rp(z?z.amt:p.tot)}</b> ${z?'· Lunas '+z.at:`<button onclick="pl('${k}')">Lunas</button>`}<button class=g onclick="pcsv('${t.id}','${mon}')">Unduh Excel</button></div>`}).join('');
+V.rep=()=>{const inc=[],exp=[];D.students.forEach(s=>s.fee&&s.regM==mon&&inc.push(['Pendaftaran '+s.name,s.fee]));
+ Object.entries(D.bills).forEach(([k,b])=>b.at.slice(0,7)==mon&&inc.push(['Les '+nm(k.split('|')[0]),b.amt]));
+ Object.entries(D.pays).forEach(([k,z])=>z.at.slice(0,7)==mon&&exp.push(['Gaji '+tn(k.split('|')[0])+' ('+k.split('|')[1]+')',z.amt]));
+ const sum=a=>a.reduce((x,y)=>x+y[1],0),cnt={};Object.values(D.ev).forEach(e=>e.ok&&e.pr.forEach(i=>cnt[i]=(cnt[i]||0)+1));
+ const run=sessions(mon).filter(s=>s.e.ok).sort((a,b)=>a.d<b.d?-1:1);
+ return`<input type=month value=${mon} onchange="mon=this.value;draw()"><div class=card><b>Keuangan ${mon}</b><br>Pendapatan ${rp(sum(inc))}<br>Pengeluaran ${rp(sum(exp))}<br><b>Pendapatan bersih ${rp(sum(inc)-sum(exp))}</b><br>
+ <button class=g onclick='csv("keuangan-${mon}",[["Jenis","Uraian","Jumlah"],...${JSON.stringify(inc.map(r=>["Pemasukan",...r]).concat(exp.map(r=>["Pengeluaran",...r])))}])'>Unduh Excel</button>
+ <button onclick="D.closed['${mon}']=!D.closed['${mon}'];save()">${D.closed[mon]?'Buka bulan':'Tutup bulan'}</button></div>
+ <div class=card><b>Kehadiran per siswa</b><table>${D.students.map(s=>`<tr><td>${s.name}</td><td>${cnt[s.id]||0}x hadir</td></tr>`).join('')}</table><button class=g onclick='csv("kehadiran-siswa",[["Siswa","Jumlah hadir"],...${JSON.stringify(D.students.map(s=>[s.name,cnt[s.id]||0]))}])'>Unduh Excel</button></div>
+ <div class=card><b>Kelas yang sudah berjalan</b><table>${run.map(s=>`<tr><td>${s.d}</td><td>${s.c.name}</td><td>${s.e.pr.length} hadir</td></tr>`).join('')}</table><button class=g onclick='csv("kelas-berjalan-${mon}",[["Tanggal","Kelas","Guru","Hadir"],...${JSON.stringify(run.map(s=>[s.d,s.c.name,tn(s.c.teacherId),s.e.pr.map(nm).join("; ")]))}])'>Unduh Excel</button></div>`};
+const NV=[['today','Hari Ini'],['cls','Kelas'],['tch','Guru'],['stu','Siswa'],['bill','Tagihan'],['pay','Gaji'],['rep','Laporan']];
+function draw(){$('#nv').innerHTML=NV.map(([k,l])=>`<b class="${k==tab?'on':''}" onclick="tab='${k}';draw()">${l}</b>`).join('')+'<b onclick="api(\'logout\',{}).then(()=>location.reload())">Keluar</b>';
+ const o=rows().filter(r=>!r.b&&TODAY>r.due+'-10').length;$('#bn').innerHTML=o?`<div class=bn>${o} tagihan belum lunas lewat tanggal 10</div>`:'';$('#app').innerHTML=V[tab]()}
+function login(){M.innerHTML=`<div class=md><h3>Masuk</h3><label>Username<input id=lu></label><label>Password<input id=lp type=password></label><button onclick="api('login',{u:lu.value,p:lp.value}).then(init).catch(()=>alert('Username atau password salah'))">Masuk</button></div>`}
+function init(){M.innerHTML='';api('db').then(d=>{D={...D,...d};draw()}).catch(login)}
+init();
+</script>
