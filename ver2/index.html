@@ -12,6 +12,7 @@ label{display:block;margin:0;color:var(--m);font-size:12px}
 .md{background:var(--c);border-radius:14px;padding:14px;width:100%;max-width:380px;max-height:88vh;max-height:88dvh;overflow:auto;box-shadow:0 8px 30px #0003}.md h3{margin:0 0 8px;font-size:16px;color:var(--a)}.md>label{margin:6px 0}
 .fg{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px}.full{grid-column:1/-1}.bt{margin-top:10px;text-align:right;position:sticky;bottom:-14px;background:var(--c);padding-top:8px}
 table{width:100%;border-collapse:collapse}td,th{padding:5px;border-bottom:1px solid var(--l);text-align:left;font-size:12px}.w{color:var(--w);font-weight:700}.s{overflow-x:auto}.bn{background:var(--w);color:#fff;padding:7px 12px;text-align:center;font-weight:600}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.hd{text-align:center;font-size:11px;color:var(--m);font-weight:600}.cd{border-radius:8px;padding:4px 1px;text-align:center;font-size:11px;cursor:pointer;min-height:44px;border:2px solid transparent}.cd b{display:block;font-size:14px}.cd.on{border-color:var(--a)}.g1{background:#d9f7e4;color:#0b6b35}.g2{background:#fff3c4;color:#8a5a00}.g3{background:#ffdede;color:#b3202c}.f3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}.chip{display:inline-block;background:#d9f7e4;color:#0b6b35;border-radius:999px;padding:2px 8px;margin:2px;font-weight:600}
 :focus-visible{outline:2px solid var(--y);outline-offset:2px}
 </style>
 <div id=M></div><nav id=nv></nav><div id=bn></div><main id=app></main>
@@ -123,7 +124,32 @@ V.rep=()=>{const inc=[],exp=[];D.students.forEach(s=>s.fee&&s.regM==mon&&inc.pus
  <button onclick="D.closed['${mon}']=!D.closed['${mon}'];save()">${D.closed[mon]?'Buka bulan':'Tutup bulan'}</button></div>
  <div class=card><b>Kehadiran per siswa</b><table>${D.students.map(s=>`<tr><td>${s.name}</td><td>${cnt[s.id]||0}x hadir</td></tr>`).join('')}</table><button class=g onclick='csv("kehadiran-siswa",[["Siswa","Jumlah hadir"],...${JSON.stringify(D.students.map(s=>[s.name,cnt[s.id]||0]))}])'>Unduh Excel</button></div>
  <div class=card><b>Kelas yang sudah berjalan</b><table>${run.map(s=>`<tr><td>${s.d}</td><td>${s.c.name}</td><td>${s.e.pr.length} hadir</td></tr>`).join('')}</table><button class=g onclick='csv("kelas-berjalan-${mon}",[["Tanggal","Kelas","Guru","Hadir"],...${JSON.stringify(run.map(s=>[s.d,s.c.name,tn(s.c.teacherId),s.e.pr.map(nm).join("; ")]))}])'>Unduh Excel</button></div>`};
-const NV=[['today','Hari Ini'],['cls','Kelas'],['tch','Guru'],['stu','Siswa'],['bill','Tagihan'],['pay','Gaji'],['rep','Laporan']];
+let fl={t:'',r:'',a:8,b:21,du:1,sel:null};
+const pm=m=>{const[y,o]=m.split('-');return ymd(new Date(y,o-2,1)).slice(0,7)},hm=x=>String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0');
+function freeMap(){const n=new Date(+mon.slice(0,4),+mon.slice(5),0).getDate(),
+ ss=[pm(mon),mon,nx(mon)].flatMap(m=>sessions(m)).filter(s=>!s.e.cx&&s.d.startsWith(mon)&&(!fl.t||s.c.teacherId==fl.t)&&(!fl.r||(s.c.room||'').trim()==fl.r)),F={};
+ for(let d=1;d<=n;d++){const ds=mon+'-'+String(d).padStart(2,'0'),bz=ss.filter(s=>s.d==ds).map(s=>[mins(s.t),mins(s.t)+s.c.hours*60]),R=[];let st=null;
+  for(let x=fl.a*60;x<fl.b*60;x+=30){const busy=bz.some(([a,b])=>a<x+30&&x<b);if(!busy&&st==null)st=x;if(busy&&st!=null){R.push([st,x]);st=null}}
+  if(st!=null)R.push([st,fl.b*60]);F[ds]=R.filter(([a,b])=>b-a>=fl.du*60)}
+ return{F,ss}}
+V.free=()=>{const n=new Date(+mon.slice(0,4),+mon.slice(5),0).getDate(),off=new Date(+mon.slice(0,4),+mon.slice(5)-1,1).getDay(),{F,ss}=freeMap(),
+ rooms=[...new Set(D.classes.map(c=>(c.room||'').trim()).filter(Boolean))],hrs=(a,b)=>[...Array(b-a+1)].map((_,i)=>[a+i,String(a+i).padStart(2,'0')+':00']),
+ op=(arr,cur)=>arr.map(([v,l])=>`<option value="${v}" ${v==cur?'selected':''}>${l}</option>`).join(''),
+ sel=fl.sel&&fl.sel.startsWith(mon)?fl.sel:(TODAY.startsWith(mon)?TODAY:mon+'-01'),sum=R=>R.reduce((x,[p,q])=>x+q-p,0)/60,tot=Object.values(F).reduce((a,R)=>a+sum(R),0);
+ let c=H.map(h=>`<div class=hd>${h}</div>`).join('')+'<div></div>'.repeat(off);
+ for(let d=1;d<=n;d++){const ds=mon+'-'+String(d).padStart(2,'0'),f=sum(F[ds]),r=f/Math.max(1,fl.b-fl.a);
+  c+=`<div class="cd ${r>=.66?'g1':r>=.25?'g2':'g3'} ${ds==sel?'on':''}" style="${ds<TODAY?'opacity:.5':''}" onclick="fl.sel='${ds}';draw()"><b>${d}</b>${f%1?f.toFixed(1):f}j</div>`}
+ const R=F[sel]||[],bz=ss.filter(x=>x.d==sel).sort((a,b)=>a.t<b.t?-1:1);
+ return`<input type=month value=${mon} onchange="mon=this.value||mon;draw()"><div class=f3>
+ <label>Guru<select onchange="fl.t=this.value;draw()">${op([['','Semua'],...D.teachers.map(t=>[t.id,t.name])],fl.t)}</select></label>
+ <label>Ruangan<select onchange="fl.r=this.value;draw()">${op([['','Semua'],...rooms.map(x=>[x,x])],fl.r)}</select></label>
+ <label>Durasi min.<select onchange="fl.du=+this.value;draw()">${op([[.5,'30 menit'],[1,'1 jam'],[1.5,'1,5 jam'],[2,'2 jam'],[3,'3 jam']],fl.du)}</select></label>
+ <label>Dari jam<select onchange="fl.a=+this.value;draw()">${op(hrs(0,23),fl.a)}</select></label>
+ <label>Sampai jam<select onchange="fl.b=+this.value;draw()">${op(hrs(1,24),fl.b)}</select></label></div>
+ <div class=card><b>Total waktu kosong: ${tot%1?tot.toFixed(1):tot} jam</b><br><small>Angka di tanggal = jam kosong hari itu (hijau banyak, kuning sedang, merah sedikit/penuh). Kosong = tidak ada kelas pada guru/ruangan yang dipilih. Ketuk tanggal untuk rincian.</small></div>
+ <div class=cal>${c}</div>
+ <div class=card><b>${H[new Date(sel+'T00:00').getDay()]}, ${sel.slice(8)}/${sel.slice(5,7)}</b><br>${R.length?R.map(([p,q])=>`<span class=chip>${hm(p)}–${hm(q)} (${(q-p)/60} jam)</span>`).join(' '):'<span class=w>Tidak ada waktu kosong</span>'}${bz.length?'<br><small>Terisi: '+bz.map(x=>`${x.t}–${hm(mins(x.t)+x.c.hours*60)} ${x.c.name} (${tn(x.c.teacherId)}${x.c.room?', '+x.c.room:''})`).join('; ')+'</small>':''}</div>`};
+const NV=[['today','Hari Ini'],['cls','Kelas'],['free','Jadwal Kosong'],['tch','Guru'],['stu','Siswa'],['bill','Tagihan'],['pay','Gaji'],['rep','Laporan']];
 function draw(){$('#nv').innerHTML=NV.map(([k,l])=>`<b class="${k==tab?'on':''}" onclick="tab='${k}';draw()">${l}</b>`).join('')+'<b onclick="api(\'logout\',{}).then(()=>location.reload())">Keluar</b>';
  const o=rows().filter(r=>!r.b&&TODAY>r.due+'-10').length;$('#bn').innerHTML=o?`<div class=bn>${o} tagihan belum lunas lewat tanggal 10</div>`:'';$('#app').innerHTML=V[tab]()}
 function login(){M.innerHTML=`<div class=md><h3>Masuk</h3><label>Username<input id=lu></label><label>Password<input id=lp type=password></label><button onclick="api('login',{u:lu.value,p:lp.value}).then(init).catch(e=>alert('Gagal masuk: '+e))">Masuk</button></div>`}
