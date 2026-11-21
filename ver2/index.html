@@ -18,7 +18,7 @@ const $=s=>document.querySelector(s),rp=n=>'Rp'+Math.round(n).toLocaleString('id
 const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const TODAY=ymd(new Date()),NOW=TODAY.slice(0,7),H=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
 let D={teachers:[],classes:[],students:[],ev:{},bills:{},pays:{},closed:{}},tab='today',day=TODAY,mon=NOW,sub;
-const SB='ISI_URL_SUPABASE',KEY='ISI_ANON_KEY',EM=u=>u.trim().toLowerCase()+'@les.app';
+const SB='https://vbouwkhdaecalbyxvito.supabase.co',KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZib3V3a2hkYWVjYWxieXh2aXRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUyMTgxMzQsImV4cCI6MjExMDc5NDEzNH0.aggwVDTYpbCMAZL_5g6w-urC2OmkdsoFO0O36UYzJU8',EM=u=>u.trim().toLowerCase()+'@les.app';
 let ses=null;try{ses=JSON.parse(localStorage.getItem('ses'))}catch{}
 const setS=x=>{ses=x;try{x?localStorage.setItem('ses',JSON.stringify(x)):localStorage.removeItem('ses')}catch{}};
 const sb=async(p,o={},retry=1)=>{const r=await fetch(SB+p,{...o,headers:{apikey:KEY,'Content-Type':'application/json',Authorization:'Bearer '+(ses?ses.access_token:KEY),...(o.headers||{})}});
