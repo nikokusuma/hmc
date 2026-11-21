@@ -106,6 +106,6 @@ const NV=[['today','Hari Ini'],['cls','Kelas'],['tch','Guru'],['stu','Siswa'],['
 function draw(){$('#nv').innerHTML=NV.map(([k,l])=>`<b class="${k==tab?'on':''}" onclick="tab='${k}';draw()">${l}</b>`).join('')+'<b onclick="api(\'logout\',{}).then(()=>location.reload())">Keluar</b>';
  const o=rows().filter(r=>!r.b&&TODAY>r.due+'-10').length;$('#bn').innerHTML=o?`<div class=bn>${o} tagihan belum lunas lewat tanggal 10</div>`:'';$('#app').innerHTML=V[tab]()}
 function login(){M.innerHTML=`<div class=md><h3>Masuk</h3><label>Username<input id=lu></label><label>Password<input id=lp type=password></label><button onclick="api('login',{u:lu.value,p:lp.value}).then(init).catch(e=>alert('Gagal masuk: '+e))">Masuk</button></div>`}
-function init(){M.innerHTML='';api('db').then(d=>{D={...D,...d};draw()}).catch(login)}
+function init(){M.innerHTML='';if(!ses)return login();api('db').then(d=>{D={...D,...d};draw()}).catch(e=>{alert('Login berhasil, tetapi gagal memuat data: '+e+'. Pastikan setup.sql sudah dijalankan di Supabase.');login()})}
 init();
 </script>
