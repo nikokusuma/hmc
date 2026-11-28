@@ -1,6 +1,6 @@
 // Service worker Jadwal Les: kerangka aplikasi tersimpan agar cepat terbuka.
 // Data (Supabase) tidak pernah disimpan di sini, jadi hasilnya selalu sama dengan versi lain.
-const V = 'jadwal-les-v1';
+const V = 'jadwal-les-v1.1.0';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

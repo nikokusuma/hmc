@@ -192,6 +192,7 @@ details.lipat summary{cursor:pointer;font-weight:700;padding:10px 2px}
 <div id="toast" aria-live="polite"></div>
 <script>
 'use strict';
+const VERSI='1.1.0';
 const SB='https://vbouwkhdaecalbyxvito.supabase.co';
 const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZib3V3a2hkYWVjYWxieXh2aXRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUyMTgxMzQsImV4cCI6MjExMDc5NDEzNH0.aggwVDTYpbCMAZL_5g6w-urC2OmkdsoFO0O36UYzJU8';
 const SK='jl_ses';
@@ -931,7 +932,7 @@ ACT.lapSemua=async el=>{
 const cekHtml=(n,v,t)=>'<label class="cek"><input type="checkbox" name="'+n+'"'+(v?' checked':'')+'><span>'+t+'</span></label>';
 async function pgSet(){
   const c=S.set,tp=(n,l,hint)=>'<label class="f"><span class="n">'+l+'</span><textarea name="'+n+'" maxlength="600">'+esc(c[n])+'</textarea><small>'+hint+'</small></label>';
-  return '<div class="ph"><h1>Pengaturan</h1></div>'
+  return '<div class="ph"><h1>Pengaturan</h1><div class="sub">Versi '+VERSI+'</div></div>'
    +'<form data-form="setSimpan"><div class="card"><h2 style="margin-bottom:10px">Umum</h2>'
    +'<label class="f"><span class="n">Nama lembaga</span><input type="text" name="nama_lembaga" required maxlength="60" value="'+esc(c.nama_lembaga)+'"></label>'
    +'<label class="f"><span class="n">Aturan bentrok jadwal</span><select name="bentrok_global"><option value="true"'+sel(true,!!c.bentrok_global)+'>Satu slot waktu hanya untuk satu siswa</option><option value="false"'+sel(false,!!c.bentrok_global)+'>Bentrok hanya jika guru atau siswanya sama</option></select><small>Berlaku untuk jadwal baru. Jadwal yang sudah ada tidak diperiksa ulang.</small></label>'
@@ -986,7 +987,7 @@ ACT.keluar=()=>{if(confirm('Keluar dari aplikasi?')){setS(null);tampilLogin()}};
 const PG={siswa:pgSiswa,guru:pgGuru,atur:pgAtur,rem:pgRem,cek:pgCek,lap:pgLap,set:pgSet};
 const NAV=[['siswa','Siswa',IC.siswa],['guru','Guru',IC.guru],['atur','Jadwal les',IC.atur],['rem','Reminder',IC.rem],['cek','Cek jadwal',IC.cek],['lap','Laporan',IC.lap]];
 function kerangka(){
-  $('#root').innerHTML='<div id="app"><header id="top"><b>Jadwal les</b><button type="button" class="ic" data-act="goSet" aria-label="Pengaturan">'+IC.gear+'</button></header>'
+  $('#root').innerHTML='<div id="app"><header id="top"><b>Jadwal les <small style="font-weight:400;opacity:.8">v'+VERSI+'</small></b><button type="button" class="ic" data-act="goSet" aria-label="Pengaturan">'+IC.gear+'</button></header>'
    +'<nav id="nav" aria-label="Menu utama">'+NAV.map(n=>'<button type="button" data-act="nav" data-p="'+n[0]+'">'+n[2]+'<span>'+n[1]+'</span></button>').join('')+'</nav><main id="main"></main></div>';
 }
 function tandaiNav(){document.querySelectorAll('#nav button').forEach(b=>{if(b.dataset.p===S.page)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')})}
