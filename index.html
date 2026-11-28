@@ -183,6 +183,7 @@ tr:last-child td{border-bottom:0}
 .muat{padding:40px 0;text-align:center;color:var(--redup)}
 details.lipat summary{cursor:pointer;font-weight:700;padding:10px 2px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.lnk{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--biru,#3F6489);text-decoration:underline;text-underline-offset:2px;cursor:pointer;text-align:left}
 </style>
 </head>
 <body>
@@ -863,7 +864,7 @@ function rekap(sesi,jenis){
 function barisLap(x,jenis,m){
   const s=x.s,r=x.r,jamH=r.hadirM,jamT=r.planM;
   const kirim=x.r.total>0&&noWA(noTagih(s))?'<button type="button" class="btn ghost sm" data-act="lapKirim" data-j="'+jenis+'" data-id="'+s.id+'">'+(jenis==='akhir'?'Kirim tagihan':'Ingatkan bayar')+'</button>':'<span class="sub">'+(r.total>0?'Nomor WA kosong':'-')+'</span>';
-  return '<tr><td><div class="nama">'+esc(s.nama)+(s.aktif?'':' <span class="chip">Nonaktif</span>')+'</div><div class="sub">'+rp(s.harga)+(s.harga_jenis==='per_bulan'?' per bulan':' per pertemuan')+'</div>'
+  return '<tr><td><div class="nama"><button type="button" class="lnk" data-act="lapDetail" data-j="'+jenis+'" data-id="'+s.id+'">'+esc(s.nama)+'</button>'+(s.aktif?'':' <span class="chip">Nonaktif</span>')+'</div><div class="sub">'+rp(s.harga)+(s.harga_jenis==='per_bulan'?' per bulan':' per pertemuan')+'</div>'
    +(r.belum?'<div class="sub" style="color:var(--amber)">'+r.belum+' sesi belum diabsen</div>':'')+'</td>'
    +'<td>'+fmtDur(jamH)+'<div class="sub">'+r.hadir+' hadir'+(r.izin||r.sakit?', '+(r.izin+r.sakit)+' izin atau sakit':'')+(r.alpa?', '+r.alpa+' alpa':'')+'</div></td>'
    +'<td>'+fmtDur(jamT)+'</td><td class="r">'+num(r.unit)+'</td><td class="r"><b>'+rp(r.total)+'</b></td><td>'+kirim+'</td></tr>';
@@ -879,7 +880,7 @@ async function pgLap(){
   const r=await Promise.all([dataBulan(mA),mA===mW?null:dataBulan(mW)]);
   const sA=r[0],sW=r[1]||r[0];
   const A=rekap(sA,'akhir'),W=rekap(sW,'awal');
-  S.lapCache={akhir:{m:mA,rows:A},awal:{m:mW,rows:W}};
+  S.lapCache={akhir:{m:mA,rows:A,sesi:sA},awal:{m:mW,rows:W,sesi:sW}};
   const gate=S.token;
   let h='<div class="ph"><h1>Laporan</h1></div>';
   h+='<div class="bagian"><h2>Bayar di akhir bulan</h2><input type="month" value="'+mA+'" data-change="lapAkhir" aria-label="Bulan tagihan akhir" style="width:auto"></div>';
@@ -900,6 +901,16 @@ function pesanTagih(jenis,x,m){
   const r=x.r,min=jenis==='akhir'?r.hadirM+(S.set.alpa_ditagih?r.alpaM:0):r.planM;
   return isi(jenis==='akhir'?S.set.tpl_tagihan_akhir:S.set.tpl_tagihan_awal,{siswa:x.s.nama,lembaga:lembaga(),bulan:fmtBulan(m),jam:num(min/60),pertemuan:num(r.unit),total:rp(r.total)});
 }
+ACT.lapDetail=el=>{
+  const j=el.dataset.j,c=S.lapCache[j],x=c.rows.find(z=>z.s.id===el.dataset.id);if(!x)return;
+  const dihitung=st=>j==='akhir'?(st==='hadir'||(st==='alpa'&&S.set.alpa_ditagih)):(st!=='diganti'&&st!=='batal');
+  const l=c.sesi.filter(z=>z.siswa_id===x.s.id).sort((a,b)=>(a.tanggal+a.jam).localeCompare(b.tanggal+b.jam));
+  let h='<div class="sub" style="margin-bottom:8px">'+(j==='akhir'?'Hadir':'Terjadwal')+' '+fmtDur(j==='akhir'?x.r.hadirM:x.r.planM)+' &middot; '+num(x.r.unit)+' pertemuan &middot; <b>'+rp(x.r.total)+'</b></div>';
+  if(!l.length)h+='<div class="kosong">Tidak ada sesi pada '+fmtBulan(c.m)+'.</div>';
+  else h+='<div class="tw"><table><thead><tr><th>Hari dan tanggal</th><th>Jam</th><th>Status</th><th class="r">Dihitung</th></tr></thead><tbody>'
+   +l.map(z=>'<tr><td>'+esc(fmtTgl(z.tanggal))+(z.jenis&&z.jenis!=='reguler'?'<div class="sub">Pengganti</div>':'')+'</td><td>'+hm(z.jam)+'-'+endT(z.jam,z.durasi)+'<div class="sub">'+fmtDur(z.durasi)+'</div></td><td><span class="stamp '+z.status+'">'+STATUS_LBL[z.status]+'</span></td><td class="r">'+(dihitung(z.status)?num(z.durasi/(z.durasi_dasar||60))+' pert.':'-')+'</td></tr>').join('')+'</tbody></table></div>';
+  bukaPanel(x.s.nama+', '+fmtBulan(c.m),h);
+};
 ACT.lapKirim=async el=>{
   const j=el.dataset.j,c=S.lapCache[j],x=c.rows.find(z=>z.s.id===el.dataset.id);
   await kirimPesan(noTagih(x.s),pesanTagih(j,x,c.m),j==='akhir'?'tagihan_akhir':'tagihan_awal',x.s.id,null,(noWA(x.s.wa_ortu)?'orang tua ':'')+x.s.nama);
