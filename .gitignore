@@ -1,0 +1,4 @@
+apk/node_modules/
+apk/android/
+apk/www/
+.DS_Store

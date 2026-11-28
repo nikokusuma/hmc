@@ -1,0 +1,90 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'icon-*.png'
+      - 'apk/**'
+      - '.github/workflows/build-apk.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'icon-*.png'
+      - 'apk/**'
+      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Salin aplikasi web ke proyek APK
+        run: |
+          mkdir -p apk/www
+          cp index.html manifest.webmanifest icon-192.png icon-512.png icon-512-maskable.png apple-touch-icon.png apk/www/
+
+      - name: Pasang dependensi dan buat proyek Android
+        working-directory: apk
+        run: |
+          npm install --no-audit --no-fund
+          npx cap add android
+          pip install --quiet pillow
+          python3 ikon.py ../icon-512.png android
+          npx cap sync android
+
+      - name: Kunci tanda tangan tetap (opsional)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            mkdir -p ~/.android
+            echo "$KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+            echo "Memakai keystore dari secret"
+          else
+            echo "Tanpa secret: kunci baru dibuat tiap build"
+          fi
+
+      - name: Build APK
+        working-directory: apk/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Beri nama berkas
+        run: cp apk/android/app/build/outputs/apk/debug/app-debug.apk JadwalLes.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JadwalLes-apk
+          path: JadwalLes.apk
+
+      - name: Terbitkan ke Releases (apk-latest)
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk-latest --cleanup-tag --yes || true
+          gh release create apk-latest JadwalLes.apk \
+            --target "${{ github.sha }}" \
+            --title "Jadwal Les (APK terbaru)" \
+            --notes "APK versi terbaru, dibuat otomatis dari commit ${{ github.sha }}. Unduh JadwalLes.apk di bawah, lalu pasang di HP."
